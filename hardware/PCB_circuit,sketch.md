@@ -4,8 +4,8 @@
 
 help. Yu Jung Seo
 
-PCB circuit
+### PCB circuit
 ![alt text](PCB_circuit.png)
 
-Sketch
+### Sketch
 ![alt text](Sketch.png)
