@@ -210,3 +210,12 @@ input[type="checkbox"]:checked { background-image: url(/art/ui/check-on.png); }
 .mood-pick { display: inline-flex; align-items: center; gap: 4px; }
 .mood-result { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
 .word-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+
+/* 의견 보내기 */
+a.btn { text-decoration: none; }
+.seg button { font-size: 16px; }
+.counter { align-self: flex-end; margin-top: -6px; }
+.counter.short { color: var(--err-ink); }
+.fb-thanks { align-items: center; text-align: center; gap: 12px; padding: 24px 14px; }
+.fb-thanks .btn { max-width: 320px; }

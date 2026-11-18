@@ -1,6 +1,7 @@
--- MoodNote 스키마 v1.3 (MySQL 8.0.16 이상 기준)
+-- MoodNote 스키마 v1.5 (MySQL 8.0.16 이상 기준)
 -- 변경 기록: v1.1 최초(테이블 10개) / v1.2 daily_condition 숫자화 + caffeine_cups, menstrual_cycles, cycle_tracking 동의 추가(11개) /
---            v1.3 daily_condition.water_cups, diary_entries.ai_suggested_word_ids 추가 (이미 만든 DB는 migrate_v1_3.sql 로 올린다). 회의 확정 필요
+--            v1.3 daily_condition.water_cups, diary_entries.ai_suggested_word_ids 추가 (이미 만든 DB는 migrate_v1_3.sql 로 올린다). 회의 확정 필요 /
+--            v1.4 diary_entries.picked_word_ids (감정 최대 3개) / v1.5 feedback 테이블 (이미 만든 DB는 migrate_v1_5.py 로 올린다)
 -- schema.sql(SQLite)의 MySQL 변환본. 구조와 제약은 같고, 문법만 다르다.
 -- 검증: MariaDB 10.11(MySQL 호환)에서 실행해 테이블 생성, 제약 차단, CASCADE 삭제를 확인했다.
 --       MySQL 8.0 자체에서는 아직 돌려보지 않았다. 처음 실행할 때 오류가 나면 팀에 알린다.
@@ -193,3 +194,21 @@ SELECT u.id AS user_id,
          WHERE c.user_id = u.id AND c.consent_type = 'ai_training' AND c.revoked_at IS NULL
        ) AS opted_in
 FROM users u;
+
+-- 사용자 의견(설정 > 의견 보내기). 일기가 아니라서 암호화하지 않는다. 읽는 법은 show_feedback.py.
+-- 탈퇴하면 같이 지워진다(CASCADE). "탈퇴하면 모든 데이터가 삭제된다"는 안내와 맞추기 위해서다.
+CREATE TABLE feedback (
+  id         CHAR(36)    NOT NULL PRIMARY KEY,
+  user_id    CHAR(36)    NOT NULL,
+  category   VARCHAR(10) NOT NULL,              -- bug 불편한 점 / idea 바라는 점 / praise 좋은 점 / other 기타
+  rating     TINYINT     NULL,                  -- 앱 만족도 1~5 (선택)
+  message    TEXT        NOT NULL,
+  status     VARCHAR(10) NOT NULL DEFAULT 'new',-- new 새 의견 / done 처리함 (개발팀이 구분하려고 쓴다)
+  created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_fbk_category CHECK (category IN ('bug','idea','praise','other')),
+  CONSTRAINT chk_fbk_rating   CHECK (rating BETWEEN 1 AND 5),
+  CONSTRAINT chk_fbk_status   CHECK (status IN ('new','done')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_feedback_user_date (user_id, created_at),
+  INDEX idx_feedback_status (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

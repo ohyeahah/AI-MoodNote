@@ -274,3 +274,33 @@ def test_llm_openai_call(monkeypatch):
         raise AssertionError("키가 없는데 통과함")
     except llm.LLMNotConfigured:
         pass
+
+
+def test_feedback(client):
+    h, _ = new_user(client)
+    ok = client.post("/api/feedback", headers=h, json={"category": "idea", "rating": 4, "message": "달력에서 월을 바로 고르고 싶어요"})
+    assert ok.status_code == 201 and ok.get_json()["success"] is True
+    # 별점은 선택이다
+    assert client.post("/api/feedback", headers=h, json={"category": "bug", "message": "저장 버튼이 안 눌려요"}).status_code == 201
+    # 잘못된 입력은 막는다
+    assert client.post("/api/feedback", headers=h, json={"category": "hello", "message": "종류가 이상해요"}).status_code == 400
+    assert client.post("/api/feedback", headers=h, json={"category": "bug", "message": "짧"}).status_code == 400
+    assert client.post("/api/feedback", headers=h, json={"category": "bug", "message": "가" * 1001}).status_code == 400
+    assert client.post("/api/feedback", headers=h, json={"category": "bug", "rating": 6, "message": "별점이 범위를 벗어나요"}).status_code == 400
+    assert client.post("/api/feedback", json={"category": "bug", "message": "로그인 없이 보내면 안 돼요"}).status_code == 401
+    # 내 데이터 내려받기에 들어간다
+    exported = client.get("/api/users/me/export", headers=h).get_json()["data"]["user_feedback"]
+    assert len(exported) == 2 and {f["category"] for f in exported} == {"idea", "bug"}
+
+
+def test_feedback_daily_limit_and_cascade(client):
+    h, login_id = new_user(client)
+    for i in range(10):
+        assert client.post("/api/feedback", headers=h, json={"category": "other", "message": f"의견 번호 {i} 입니다"}).status_code == 201
+    limited = client.post("/api/feedback", headers=h, json={"category": "other", "message": "열한 번째 의견이에요"})
+    assert limited.status_code == 429 and limited.get_json()["error"]["code"] == "RATE_LIMITED"
+    # 탈퇴하면 의견도 같이 지워진다
+    assert client.delete("/api/users/me", headers=h, json={"password": "password123"}).status_code == 200
+    with app.app_context(), db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS n FROM feedback f LEFT JOIN users u ON u.id=f.user_id WHERE u.id IS NULL")
+        assert cur.fetchone()["n"] == 0

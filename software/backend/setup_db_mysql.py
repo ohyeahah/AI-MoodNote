@@ -1,7 +1,7 @@
 """MoodNote DB 구축 스크립트 (MySQL / MariaDB)
 
 한 번 실행하면 아래를 순서대로 한다.
-  1) schema_mysql.sql 로 DB와 테이블 11개 + 뷰 1개를 만든다.
+  1) schema_mysql.sql 로 DB와 테이블 12개 + 뷰 1개를 만든다.
   2) mood_words.csv 의 무드 단어 100개를 mood_words 테이블에 넣는다. (일기 테이블이 이 테이블을 참조하므로 반드시 먼저)
   3) (선택 --seed) seed_dev_mysql.sql 의 가짜 데이터를 넣는다.
   4) (선택 --app-user 이름) API가 쓸 권한 제한 계정을 만든다. root로 API를 돌리면 안 된다.
@@ -29,8 +29,8 @@ from pymysql.constants import CLIENT
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = "moodnote"
-EXPECTED_TABLES = 11  # users, user_profile, relationships, mood_words, diary_entries, ai_feedback,
-                      # daily_condition, menstrual_cycles, self_model, safety_events, consents
+EXPECTED_TABLES = 12  # users, user_profile, relationships, mood_words, diary_entries, ai_feedback,
+                      # daily_condition, menstrual_cycles, self_model, safety_events, consents, feedback
 
 
 def parse_args():

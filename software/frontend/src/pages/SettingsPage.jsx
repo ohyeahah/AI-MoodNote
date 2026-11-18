@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { todayKST } from '../lib/dates';
 
-// ① 설정. 닉네임, 동의, 내 데이터 내려받기, 로그아웃, 탈퇴, 공지.
-const NOTICE = 'MoodNote 테스트 버전이에요. 불편한 점이 있으면 팀에 알려 주세요.';
+// ① 설정. 닉네임, 동의, 의견 보내기, 내 데이터 내려받기, 로그아웃, 탈퇴, 공지.
+const NOTICE = 'MoodNote 테스트 버전이에요. 불편한 점이나 바라는 점은 아래 "의견 보내기"로 알려 주세요.';
 
 export default function SettingsPage() {
   const { user, consents, refresh, setConsent, logout } = useAuth();
@@ -52,6 +53,12 @@ export default function SettingsPage() {
       {msg && <p className={`msg ${msg.type}`} role={msg.type === 'error' ? 'alert' : 'status'}>{msg.text}</p>}
 
       <section className="card"><h3>공지</h3><p className="small">{NOTICE}</p></section>
+
+      <section className="card stack">
+        <h3>의견 보내기</h3>
+        <p className="muted small">불편한 점, 바라는 점, 좋았던 점을 알려 주세요. 앱을 고치는 데 바로 쓸게요.</p>
+        <Link to="/feedback" className="btn primary full">의견 남기기</Link>
+      </section>
 
       <section className="card stack">
         <h3>내 정보</h3>

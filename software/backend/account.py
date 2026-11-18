@@ -75,6 +75,8 @@ def export_my_data():
         cycles = cur.fetchall()
         cur.execute("SELECT consent_type, version, granted_at, revoked_at FROM consents WHERE user_id=%s", (user_id,))
         consents = cur.fetchall()
+        cur.execute("SELECT category, rating, message, created_at FROM feedback WHERE user_id=%s ORDER BY created_at", (user_id,))
+        user_feedback = cur.fetchall()
 
     for d in diaries:
         for col in ("content", "trigger_event", "automatic_thought"):
@@ -83,7 +85,8 @@ def export_my_data():
         profile["childhood_trauma"] = decrypt(profile["childhood_trauma"])
     return jsonify({"success": True, "exported_at": now_kst(), "data": {
         "user": user, "profile": profile, "diaries": diaries, "ai_feedback": feedback,
-        "daily_conditions": conditions, "menstrual_cycles": cycles, "consents": consents}})
+        "daily_conditions": conditions, "menstrual_cycles": cycles, "consents": consents,
+        "user_feedback": user_feedback}})
 
 
 @bp.delete("/api/users/me")

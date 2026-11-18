@@ -6,6 +6,7 @@ import TabBar from './components/TabBar';
 import CalendarPage from './pages/CalendarPage';
 import ConsentPage from './pages/ConsentPage';
 import DayDetailPage from './pages/DayDetailPage';
+import FeedbackPage from './pages/FeedbackPage';
 import GraphPage from './pages/GraphPage';
 import LoginPage from './pages/LoginPage';
 import SettingsPage from './pages/SettingsPage';
@@ -25,6 +26,7 @@ function MainApp() {
           <Route path="/detail/:date" element={<DayDetailPage />} />
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="*" element={<TodayPage />} />
         </Routes>
       </main>

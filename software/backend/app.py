@@ -12,7 +12,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from werkzeug.exceptions import HTTPException, NotFound
 
-import account, ai, auth, diary, tracking
+import account, ai, auth, diary, feedback, tracking
 from common import APIError, db_cursor, error_response, now_kst
 from config import Config
 
@@ -53,7 +53,7 @@ def create_app():
     def _expired(header, payload):
         return error_response("TOKEN_EXPIRED", "로그인이 만료되었습니다. 다시 로그인해 주세요.", 401)
 
-    for module in (auth, diary, tracking, account, ai):
+    for module in (auth, diary, tracking, account, ai, feedback):
         app.register_blueprint(module.bp)
 
     @app.get("/api/health")
