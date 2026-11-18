@@ -37,14 +37,15 @@ export default function LoginPage() {
 
   return (
     <main className="auth login">
-      <h1 className="wordmark">MoodNote</h1>
+      <h1 className="wordmark"><img src="/art/ui/logo.png" alt="MoodNote" height="84" draggable="false" /></h1>
 
       <form onSubmit={submit} className="stack">
-        <input aria-label="아이디" placeholder="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)}
-          autoComplete="username" required minLength={isLogin ? 1 : 4} maxLength={64} />
+        {/* 회원가입은 닉네임 → 아이디 → 비밀번호 순서 */}
         {!isLogin && (
           <input aria-label="닉네임" placeholder="닉네임" value={nickname} onChange={(e) => setNickname(e.target.value)} required maxLength={50} />
         )}
+        <input aria-label="아이디" placeholder="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)}
+          autoComplete="username" required minLength={isLogin ? 1 : 4} maxLength={64} />
         <input aria-label="비밀번호" type="password" placeholder={isLogin ? '비밀번호' : '비밀번호 (8자 이상)'} value={password}
           onChange={(e) => setPassword(e.target.value)} autoComplete={isLogin ? 'current-password' : 'new-password'}
           required minLength={isLogin ? 1 : 8} maxLength={128} />

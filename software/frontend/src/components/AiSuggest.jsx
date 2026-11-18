@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../api/client';
-import { zoneColor } from '../lib/zones';
+import Ball from './Ball';
 
 // 일기를 쓴 뒤 "AI 추천받기"를 누르면 후보 단어 3개가 나오고, 누르면 위의 감정 칸이 채워진다.
 // 추천은 참고용이다. 어떤 단어를 추천했는지도 같이 저장해서(onSuggested), 나중에 학습 데이터에서 추천에 끌린 기록을 구분한다.
@@ -28,7 +28,7 @@ export default function AiSuggest({ content, aiConsent, onPick, onSuggested, onO
 
   return (
     <section className="card">
-      <button type="button" className="btn secondary full" disabled={disabled} onClick={fetchSuggest}>
+      <button type="button" className={`ai-btn ${loading ? 'loading' : ''}`} disabled={disabled} aria-busy={loading} onClick={fetchSuggest}>
         {loading ? 'AI가 읽고 있어요…' : '✨ AI 감정 추천받기'}
       </button>
 
@@ -46,9 +46,11 @@ export default function AiSuggest({ content, aiConsent, onPick, onSuggested, onO
           <p className="muted small">누르면 위의 감정 칸에 들어가요. 최종 선택은 내가 해요.</p>
           {suggestions.map((s) => (
             <button key={s.id} type="button" className="suggest" onClick={() => onPick({ id: s.id, word_ko: s.word_ko, zone: s.zone })}>
-              <span className="dot" style={{ background: zoneColor(s.zone) }} />
-              <b>{s.word_ko}</b>
-              {s.reason && <span className="muted small">{s.reason}</span>}
+              <Ball id={s.id} size={40} />
+              <span className="suggest-text">
+                <b>{s.word_ko}</b>
+                {s.reason && <span className="muted small">{s.reason}</span>}
+              </span>
             </button>
           ))}
         </div>

@@ -1,21 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiRequest } from '../api/client';
+import Art from '../components/Art';
+import Ball from '../components/Ball';
 import MoodSelectorModal from '../components/MoodSelectorModal';
 import { formatKo } from '../lib/dates';
-import { zoneColor } from '../lib/zones';
+import { MAX_MOODS } from '../lib/mood';
 
 // ② 하루 상세. 그날의 일기(여러 개일 수 있음)와 컨디션. 일기는 수정·삭제할 수 있다.
 const COND_ROWS = [
-  ['sleep_hours', '수면', '시간'], ['sleep_score', '수면의 질', '/5'], ['meal_count', '끼니', '끼'],
-  ['appetite_score', '식욕', '/5'], ['bowel_score', '배변', '/5'], ['exercise_minutes', '운동', '분'],
-  ['caffeine_cups', '카페인', '잔'], ['water_cups', '물', '잔'],
+  ['sleep_hours', '수면', '시간', 'cond-sleep-hours'], ['sleep_score', '수면의 질', '/5', 'cond-sleep-quality'], ['meal_count', '끼니', '끼', 'cond-meal'],
+  ['appetite_score', '식욕', '/5', 'cond-appetite'], ['bowel_score', '배변', '/5', 'cond-bowel'], ['exercise_minutes', '운동', '분', 'cond-exercise'],
+  ['caffeine_cups', '카페인', '잔', 'cond-caffeine'], ['water_cups', '물', '잔', 'cond-water'],
 ];
 
 function DiaryCard({ diary, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(diary.content);
-  const [mood, setMood] = useState(diary.mood);
+  const toMoods = (d) => (d.mood_words || []).map((w) => ({ id: w.id, word_ko: w.word_ko, zone: w.zone }));
+  const [moods, setMoods] = useState(toMoods(diary));
   const [modal, setModal] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,7 +27,7 @@ function DiaryCard({ diary, onChanged }) {
     try {
       await apiRequest(`/api/diaries/${diary.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ content: text, ...(mood ? { mood_word_id: mood.id } : {}) }),
+        body: JSON.stringify({ content: text, ...(moods.length ? { mood_word_ids: moods.map((m) => m.id) } : {}) }),
       });
       setEditing(false); onChanged();
     } catch (e) { setError(e.message); }
@@ -38,9 +41,9 @@ function DiaryCard({ diary, onChanged }) {
 
   return (
     <section className="card">
-      <p>
-        <span className="dot" style={{ background: zoneColor(mood?.zone) }} />
-        <b>{mood?.word_ko || '감정 없음'}</b>
+      <p className="diary-mood">
+        {(editing ? moods : (diary.mood ? [diary.mood] : [])).map((m) => <Ball key={m.id} id={m.id} size={40} />)}
+        <b>{editing ? (moods.map((m) => m.word_ko).join(' · ') || '감정 없음') : (diary.mood_words?.map((m) => m.word_ko).join(' · ') || '감정 없음')}</b>
         {editing && <button type="button" className="link" onClick={() => setModal(true)}>바꾸기</button>}
       </p>
       {editing ? (
@@ -48,7 +51,7 @@ function DiaryCard({ diary, onChanged }) {
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
           <div className="row">
             <button type="button" className="btn primary" onClick={save} disabled={!text.trim()}>저장</button>
-            <button type="button" className="btn ghost" onClick={() => { setEditing(false); setText(diary.content); setMood(diary.mood); }}>취소</button>
+            <button type="button" className="btn ghost" onClick={() => { setEditing(false); setText(diary.content); setMoods(toMoods(diary)); }}>취소</button>
           </div>
         </>
       ) : (
@@ -61,7 +64,8 @@ function DiaryCard({ diary, onChanged }) {
         </>
       )}
       {error && <p className="msg error" role="alert">{error}</p>}
-      <MoodSelectorModal isOpen={modal} onClose={() => setModal(false)} selectedId={mood?.id} onSelect={setMood} />
+      <MoodSelectorModal isOpen={modal} onClose={() => setModal(false)} selectedIds={moods.map((m) => m.id)}
+        onToggle={(m) => setMoods((prev) => (prev.some((x) => x.id === m.id) ? prev.filter((x) => x.id !== m.id) : prev.length >= MAX_MOODS ? prev : [...prev, m]))} />
     </section>
   );
 }
@@ -92,7 +96,7 @@ export default function DayDetailPage() {
   return (
     <div className="page">
       <div className="row between">
-        <button type="button" className="icon-btn" aria-label="달력으로" onClick={() => navigate('/calendar')}>‹</button>
+        <button type="button" className="art-btn" aria-label="달력으로" onClick={() => navigate('/calendar')}><Art name="icon-back" size={32} /></button>
         <h2>{formatKo(date)}</h2>
         <span />
       </div>
@@ -107,7 +111,7 @@ export default function DayDetailPage() {
         <h3>컨디션</h3>
         {shown.length ? (
           <dl className="cond">
-            {shown.map(([k, label, unit]) => <div key={k}><dt>{label}</dt><dd>{cond[k]}{unit}</dd></div>)}
+            {shown.map(([k, label, unit, icon]) => <div key={k}><dt><Art name={icon} size={22} />{label}</dt><dd>{cond[k]}{unit}</dd></div>)}
           </dl>
         ) : <p className="muted">기록한 컨디션이 없어요.</p>}
       </section>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
+import Art from './components/Art';
 import TabBar from './components/TabBar';
 import CalendarPage from './pages/CalendarPage';
 import ConsentPage from './pages/ConsentPage';
@@ -14,8 +15,8 @@ function MainApp() {
   return (
     <div className="shell">
       <header className="topbar">
-        <Link to="/" className="brand">MoodNote</Link>
-        <Link to="/settings" className="icon-btn" aria-label="설정">⚙</Link>
+        <Link to="/" className="brand" aria-label="MoodNote 홈"><img className="logo" src="/art/ui/logo.png" alt="MoodNote" height="38" draggable="false" /></Link>
+        <Link to="/settings" className="art-btn" aria-label="설정"><Art name="icon-settings" size={36} /></Link>
       </header>
       <main className="content">
         <Routes>
