@@ -3,15 +3,16 @@
 import os
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 
 from cryptography.fernet import Fernet
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, NotFound
 
-import account, auth, diary, tracking
+import account, ai, auth, diary, tracking
 from common import APIError, db_cursor, error_response, now_kst
 from config import Config
 
@@ -52,7 +53,7 @@ def create_app():
     def _expired(header, payload):
         return error_response("TOKEN_EXPIRED", "로그인이 만료되었습니다. 다시 로그인해 주세요.", 401)
 
-    for module in (auth, diary, tracking, account):
+    for module in (auth, diary, tracking, account, ai):
         app.register_blueprint(module.bp)
 
     @app.get("/api/health")
@@ -65,6 +66,19 @@ def create_app():
             app.logger.exception("health check: DB 연결 실패")
             db = "disconnected"        # 자세한 오류는 화면이 아니라 서버 로그에만 남긴다
         return jsonify({"status": "ok", "db": db, "timestamp": now_kst()})
+
+    # 배포할 때는 이 서버 하나가 화면(frontend/dist)까지 같이 내보낸다. (주소가 하나라서 CORS 설정이 필요 없다)
+    # dist 폴더가 없으면(개발 중) 이 부분은 아무 일도 하지 않는다. 위치를 바꾸려면 .env 에 FRONTEND_DIST 를 적는다.
+    dist = Path(os.getenv("FRONTEND_DIST") or Path(__file__).resolve().parent.parent / "frontend" / "dist")
+    if (dist / "index.html").is_file():
+        @app.get("/", defaults={"path": ""})
+        @app.get("/<path:path>")
+        def frontend(path):
+            if path == "api" or path.startswith("api/"):
+                raise NotFound()                              # 없는 API 주소는 화면이 아니라 JSON 404 로
+            if path and (dist / path).is_file():
+                return send_from_directory(dist, path)        # js, css 같은 파일
+            return send_from_directory(dist, "index.html")    # /calendar 처럼 화면 주소는 모두 index.html
 
     @app.errorhandler(APIError)
     def _api_error(e):

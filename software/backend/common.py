@@ -26,7 +26,7 @@ def today_kst():
 
 # ---------- 에러 ----------
 class APIError(Exception):
-    """사용자에게 보여줄 오류. app.py 의 error handler 가 JSON 으로 바꿔 준다."""
+    """사용자에게 보여줄 오류. 아래 error handler 가 JSON 으로 바꿔 준다."""
 
     def __init__(self, message, code="INVALID_INPUT", status_code=400):
         super().__init__(message)
@@ -142,8 +142,9 @@ def parse_date(value, field, allow_future=False):
 
 def date_range(args, default_days=30, max_days=366):
     """?from=2026-10-01&to=2026-10-31 을 읽는다. 없으면 최근 default_days 일."""
-    end = parse_date(args.get("to"), "to") or today_kst()
-    start = parse_date(args.get("from"), "from") or (end - timedelta(days=default_days - 1))
+    # 조회(읽기)는 미래 날짜를 허용한다. 달력이 이번 달 마지막 날까지 요청하기 때문이다. 기록(쓰기)은 여전히 미래 날짜를 막는다.
+    end = parse_date(args.get("to"), "to", allow_future=True) or today_kst()
+    start = parse_date(args.get("from"), "from", allow_future=True) or (end - timedelta(days=default_days - 1))
     if start > end:
         raise APIError("'from' 은 'to' 보다 늦을 수 없어요.")
     if (end - start).days > max_days:
@@ -160,3 +161,12 @@ def page_args(args, default=30, maximum=100):
     if not (1 <= limit <= maximum) or offset < 0:
         raise APIError(f"limit 은 1~{maximum}, offset 은 0 이상이어야 해요.")
     return limit, offset
+
+
+def parse_word_ids(value, field="ai_suggested_word_ids"):
+    """AI가 추천한 무드 단어 id 목록(최대 3개, 각 1~100)을 검사해서 '12,45,67' 문자열로 돌려준다. 없으면 None."""
+    if value is None:
+        return None
+    if not isinstance(value, list) or len(value) > 3 or any(isinstance(i, bool) or not isinstance(i, int) or not 1 <= i <= 100 for i in value):
+        raise APIError(f"'{field}' 는 1~100 사이 정수 최대 3개의 목록이어야 해요.")
+    return ",".join(str(i) for i in value) or None

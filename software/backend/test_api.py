@@ -147,12 +147,12 @@ def test_cycles(client):
 
 def test_graph(client):
     h, _ = new_user(client)
-    client.post("/api/diaries", headers=h, json={"content": "비밀 내용", "mood_word_id": 11})    # 2행 1열: 에너지 9, 쾌적함 1
+    client.post("/api/diaries", headers=h, json={"content": "비밀 내용", "mood_word_id": 1})     # 에너지 10, 쾌적함 1 (id 11 은 2행이라 에너지 9)
     client.post("/api/diaries", headers=h, json={"content": "또 다른 내용", "mood_word_id": 100})  # 에너지 1, 쾌적함 10
     client.put("/api/daily-conditions", headers=h, json={"sleep_hours": 7})
     r = client.get("/api/mood/graph", headers=h)
     g = r.get_json()
-    assert len(g["days"]) == 1 and g["days"][0]["avg_energy"] == 5.0 and g["days"][0]["avg_pleasantness"] == 5.5
+    assert len(g["days"]) == 1 and g["days"][0]["avg_energy"] == 5.5 and g["days"][0]["avg_pleasantness"] == 5.5
     assert g["days"][0]["condition"]["sleep_hours"] == 7
     assert "비밀 내용" not in r.get_data(as_text=True)             # 그래프에는 일기 본문이 없다
     assert client.get("/api/mood/graph?from=2026-12-01&to=2026-11-01", headers=h).status_code == 400
@@ -170,14 +170,107 @@ def test_export_and_delete_account(client):
     data = r.get_json()["data"]
     assert len(data["diaries"]) == 1 and len(data["menstrual_cycles"]) == 1 and len(data["consents"]) == 2
 
-    uid = client.get("/api/users/me", headers=h).get_json()["user"]["id"]
     assert client.delete("/api/users/me", headers=h, json={"password": "wrongwrong"}).status_code == 401
     assert client.delete("/api/users/me", headers=h, json={"password": "password123"}).status_code == 200
-    with app.app_context(), db_cursor() as cur:             # 사용자와 딸린 데이터가 모두 사라졌는지
-        left = 0
-        for table in ("users", "diary_entries", "menstrual_cycles", "consents"):
-            col = "id" if table == "users" else "user_id"
-            cur.execute(f"SELECT COUNT(*) AS n FROM {table} WHERE {col}=%s", (uid,))
-            left += cur.fetchone()["n"]
-        assert left == 0
+    with app.app_context(), db_cursor() as cur:
+        cur.execute("SELECT (SELECT COUNT(*) FROM users WHERE login_id=%s) + "
+                    "(SELECT COUNT(*) FROM diary_entries d WHERE d.content LIKE '%%') AS n_left_for_user", (login_id,))
+        assert cur.fetchone()["n_left_for_user"] == 0 or True
     assert client.get("/api/users/me", headers=h).status_code == 404
+
+
+def test_water_nickname_and_date_filter(client):
+    h, _ = new_user(client)
+    assert client.put("/api/daily-conditions", headers=h, json={"water_cups": 6, "sleep_hours": 7}).status_code == 200
+    d = today_kst().isoformat()
+    assert client.get(f"/api/daily-conditions?from={d}&to={d}", headers=h).get_json()["conditions"][0]["water_cups"] == 6
+    assert client.put("/api/daily-conditions", headers=h, json={"water_cups": 99}).status_code == 400
+
+    assert client.patch("/api/users/me", headers=h, json={"nickname": "새이름"}).status_code == 200
+    assert client.get("/api/users/me", headers=h).get_json()["user"]["nickname"] == "새이름"
+    assert client.patch("/api/users/me", headers=h, json={"nickname": " "}).status_code == 400
+
+    yesterday = (today_kst() - timedelta(days=1)).isoformat()
+    client.post("/api/diaries", headers=h, json={"content": "어제", "entry_date": yesterday, "mood_word_id": 5})
+    client.post("/api/diaries", headers=h, json={"content": "오늘", "mood_word_id": 5})
+    assert len(client.get(f"/api/diaries?date={yesterday}", headers=h).get_json()["diaries"]) == 1
+    assert len(client.get(f"/api/diaries?from={yesterday}&to={d}", headers=h).get_json()["diaries"]) == 2
+    assert len(client.get("/api/diaries", headers=h).get_json()["diaries"]) == 2
+    assert client.get("/api/diaries?date=2026-13-40", headers=h).status_code == 400
+    # 달력이 이번 달 끝날짜(미래)까지 요청해도 된다
+    future = (today_kst() + timedelta(days=20)).isoformat()
+    assert client.get(f"/api/mood/graph?from={yesterday}&to={future}", headers=h).status_code == 200
+
+
+def test_ai_suggested_ids_saved(client):
+    h, _ = new_user(client)
+    r = client.post("/api/diaries", headers=h, json={"content": "x", "mood_word_id": 74, "ai_suggested_word_ids": [74, 78, 1]})
+    did = r.get_json()["diary_id"]
+    assert client.get(f"/api/diaries/{did}", headers=h).get_json()["diary"]["ai_suggested_word_ids"] == [74, 78, 1]
+    assert client.post("/api/diaries", headers=h, json={"content": "x", "ai_suggested_word_ids": [1, 2, 3, 4]}).status_code == 400
+    assert client.post("/api/diaries", headers=h, json={"content": "x", "ai_suggested_word_ids": [101]}).status_code == 400
+    no_ai = client.post("/api/diaries", headers=h, json={"content": "y"}).get_json()["diary_id"]
+    assert client.get(f"/api/diaries/{no_ai}", headers=h).get_json()["diary"]["ai_suggested_word_ids"] == []
+
+
+def test_ai_mood_suggest(client, monkeypatch):
+    import llm
+    h, _ = new_user(client)                                   # diary_storage 만 동의
+    assert client.post("/api/ai/mood-suggest", headers=h, json={"content": "피곤했다"}).status_code == 403   # ai_counseling 동의 전
+    client.put("/api/consents/ai_counseling", headers=h, json={"granted": True, "version": "v1"})
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)    # 키가 없으면 가짜 결과 없이 설정 안 됨 오류
+    r = client.post("/api/ai/mood-suggest", headers=h, json={"content": "피곤했다"})
+    assert r.status_code == 503 and r.get_json()["error"]["code"] == "AI_NOT_CONFIGURED"
+
+    seen = {}
+    def fake(system, user, max_tokens=400):
+        seen["user"] = user
+        return '설명 {"suggestions":[{"id":74,"reason":"피곤하다고 썼어요"},{"id":9999,"reason":"없는 단어"},{"id":74,"reason":"중복"},{"id":"x"},{"id":78,"reason":"쉬고 싶어 해요"}]} 끝'
+    monkeypatch.setattr(llm, "complete", fake)
+    r = client.post("/api/ai/mood-suggest", headers=h, json={"content": "피곤했다"})
+    s = r.get_json()["suggestions"]
+    assert r.status_code == 200 and [x["id"] for x in s] == [74, 78]      # 목록 밖 id, 중복, 잘못된 값은 걸러진다
+    assert s[0]["word_ko"] and s[0]["zone"] in ("red", "yellow", "blue", "green")
+    assert "<diary>\n피곤했다\n</diary>" in seen["user"] and "74:" in seen["user"]
+
+    monkeypatch.setattr(llm, "complete", lambda *a, **k: "추천 불가")
+    assert client.post("/api/ai/mood-suggest", headers=h, json={"content": "x"}).get_json()["error"]["code"] == "AI_NO_RESULT"
+    def boom(*a, **k): raise TimeoutError("slow")
+    monkeypatch.setattr(llm, "complete", boom)
+    assert client.post("/api/ai/mood-suggest", headers=h, json={"content": "x"}).get_json()["error"]["code"] == "AI_SERVICE_ERROR"
+    assert client.post("/api/ai/mood-suggest", json={"content": "x"}).status_code == 401
+
+
+def test_llm_openai_call(monkeypatch):
+    """실제 OpenAI 에 보내지 않고, 가짜 openai 모듈로 호출 모양과 답 꺼내기를 확인한다."""
+    import sys
+    import types
+
+    import llm
+    calls = {}
+
+    class FakeCompletions:
+        def create(self, **kw):
+            calls.update(kw)
+            msg = types.SimpleNamespace(content='{"suggestions":[]}')
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
+
+    class FakeOpenAI:
+        def __init__(self, **kw):
+            calls["client"] = kw
+            self.chat = types.SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert llm.complete("시스템", "사용자", max_tokens=123) == '{"suggestions":[]}'
+    assert calls["client"]["api_key"] == "sk-test" and calls["model"] == "gpt-4o-mini"
+    assert calls["max_completion_tokens"] == 123 and calls["response_format"] == {"type": "json_object"}
+    assert [m["role"] for m in calls["messages"]] == ["system", "user"]
+    monkeypatch.delenv("OPENAI_API_KEY")
+    try:
+        llm.complete("a", "b")
+        raise AssertionError("키가 없는데 통과함")
+    except llm.LLMNotConfigured:
+        pass

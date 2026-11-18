@@ -26,7 +26,7 @@ def signup():
         with db_cursor() as cur:
             cur.execute(
                 "INSERT INTO users (id, nickname, login_id, password_hash) VALUES (%s,%s,%s,%s)",
-                (user_id, nickname, login_id, generate_password_hash(password, method="pbkdf2:sha256")))   # 비밀번호는 해시로만 저장
+                (user_id, nickname, login_id, generate_password_hash(password, method="pbkdf2:sha256")))   # 비밀번호는 해시로만 저장. 맥 기본 파이썬에는 scrypt 가 없어서 모든 환경에서 되는 pbkdf2 를 쓴다
     except Exception as e:
         if is_duplicate_error(e):    # 먼저 조회하지 않고 저장을 시도해서, 동시에 가입해도 안전하다
             raise APIError("이미 존재하는 아이디입니다.", "DUPLICATE_USER", 409)
@@ -47,6 +47,16 @@ def login():
     token = create_access_token(identity=user["id"])    # 유효 기간은 config.py 에서 정한다
     return jsonify({"success": True, "access_token": token,
                     "user": {"id": user["id"], "nickname": user["nickname"]}})
+
+
+@bp.patch("/api/users/me")
+@jwt_required()
+def update_me():
+    """닉네임만 고칠 수 있다. (아이디와 비밀번호 변경은 이번 범위가 아니다)"""
+    nickname = req_text(json_body(), "nickname", 1, 50)
+    with db_cursor() as cur:
+        cur.execute("UPDATE users SET nickname=%s WHERE id=%s", (nickname, get_jwt_identity()))
+    return jsonify({"success": True, "nickname": nickname})
 
 
 @bp.get("/api/users/me")

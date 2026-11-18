@@ -14,7 +14,7 @@ bp = Blueprint("tracking", __name__)
 CONDITION_FIELDS = {
     "sleep_hours": (0, 24, False), "sleep_score": (1, 5, True), "meal_count": (0, 10, True),
     "appetite_score": (1, 5, True), "bowel_score": (1, 5, True),
-    "exercise_minutes": (0, 1440, True), "caffeine_cups": (0, 20, True),
+    "exercise_minutes": (0, 1440, True), "caffeine_cups": (0, 20, True), "water_cups": (0, 30, True),
 }
 
 
@@ -54,7 +54,7 @@ def list_conditions():
     with db_cursor() as cur:
         require_consent(cur, user_id, "diary_storage")
         cur.execute("SELECT log_date, source, sleep_hours, sleep_score, meal_count, appetite_score, bowel_score, "
-                    "exercise_minutes, caffeine_cups FROM daily_condition "
+                    "exercise_minutes, caffeine_cups, water_cups FROM daily_condition "
                     "WHERE user_id=%s AND log_date BETWEEN %s AND %s ORDER BY log_date, source",
                     (user_id, start, end))
         rows = cur.fetchall()

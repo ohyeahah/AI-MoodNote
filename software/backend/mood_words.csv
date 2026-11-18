@@ -1,0 +1,101 @@
+﻿id,word_ko,word_en,grid_row,grid_col,energy,pleasantness,zone
+1,격분한,Enraged,1,1,10,1,red
+2,공황에 빠진,Panicked,1,2,10,2,red
+3,스트레스 받는,Stressed,1,3,10,3,red
+4,초조한,Jittery,1,4,10,4,red
+5,충격받은,Shocked,1,5,10,5,red
+6,놀란,Surprised,1,6,10,6,yellow
+7,긍정적인,Upbeat,1,7,10,7,yellow
+8,흥겨운,Festive,1,8,10,8,yellow
+9,아주 신나는,Exhilarated,1,9,10,9,yellow
+10,황홀한,Ecstatic,1,10,10,10,yellow
+11,격노한,Livid,2,1,9,1,red
+12,몹시 화가난,Furious,2,2,9,2,red
+13,좌절한,Frustrated,2,3,9,3,red
+14,신경이 날카로운,Tense,2,4,9,4,red
+15,망연자실한,Stunned,2,5,9,5,red
+16,들뜬,Hyper,2,6,9,6,yellow
+17,쾌활한,Cheerful,2,7,9,7,yellow
+18,동기 부여된,Motivated,2,8,9,8,yellow
+19,영감을 받은,Inspired,2,9,9,9,yellow
+20,의기양양한,Elated,2,10,9,10,yellow
+21,화가 치밀어 오른,Fuming,3,1,8,1,red
+22,겁먹은 ,Frightened,3,2,8,2,red
+23,화난,Angry,3,3,8,3,red
+24,초조한,Nervous,3,4,8,4,red
+25,안절부절 못하는,Restless,3,5,8,5,red
+26,기운이 넘치는,Energized,3,6,8,6,yellow
+27,활발한,Lively,3,7,8,7,yellow
+28,흥분한,Excited,3,8,8,8,yellow
+29,낙관적인,Optimistic,3,9,8,9,yellow
+30,열광하는,Enthusiastic,3,10,8,10,yellow
+31,불안한,Anxious,4,1,7,1,red
+32,우려하는,Apprehensive,4,2,7,2,red
+33,근심하는,Worried,4,3,7,3,red
+34,짜증나는,Irritated,4,4,7,4,red
+35,거슬리는,Annoyed,4,5,7,5,red
+36,만족스러운,Pleased,4,6,7,6,yellow
+37,집중하는,Focused,4,7,7,7,yellow
+38,행복한,Happy,4,8,7,8,yellow
+39,자랑스러운,Proud,4,9,7,9,yellow
+40,짜릿한,Thrilled,4,10,7,10,yellow
+41,불쾌한,Repulsed,5,1,6,1,red
+42,골치 아픈,Troubled,5,2,6,2,red
+43,염려하는,Concerned,5,3,6,3,red
+44,마음이 불편한,Uneasy,5,4,6,4,red
+45,언짢은,Peeved,5,5,6,5,red
+46,유쾌한,Pleasant,5,6,6,6,yellow
+47,기쁜,Joyful,5,7,6,7,yellow
+48,희망찬,Hopeful,5,8,6,8,yellow
+49,재미있는,Playful,5,9,6,9,yellow
+50,더없이 행복한,Blissful,5,10,6,10,yellow
+51,역겨운,Disgusted,6,1,5,1,blue
+52,침울한,Glum,6,2,5,2,blue
+53,실망스러운,Disappointed,6,3,5,3,blue
+54,의욕 없는,Down,6,4,5,4,blue
+55,냉담한,Apathetic,6,5,5,5,blue
+56,속 편한,At Ease,6,6,5,6,green
+57,태평한,Easygoing,6,7,5,7,green
+58,자족하는,Content,6,8,5,8,green
+59,다정한,Loving,6,9,5,9,green
+60,충만한,Fulfilled,6,10,5,10,green
+61,비관적인,Pessimistic,7,1,4,1,blue
+62,시무룩한,Morose,7,2,4,2,blue
+63,낙담한,Discouraged,7,3,4,3,blue
+64,슬픈,Sad,7,4,4,4,blue
+65,지루한,Bored,7,5,4,5,blue
+66,평온한,Calm,7,6,4,6,green
+67,안전한,Secure,7,7,4,7,green
+68,만족스러운,Satisfied,7,8,4,8,green
+69,감사하는,Grateful,7,9,4,9,green
+70,감동적인,Touched,7,10,4,10,green
+71,소외된,Alienated,8,1,3,1,blue
+72,비참한,Miserable,8,2,3,2,blue
+73,쓸쓸한,Lonely,8,3,3,3,blue
+74,기죽은,Disheartened,8,4,3,4,blue
+75,피곤한,Tired,8,5,3,5,blue
+76,여유로운,Relaxed,8,6,3,6,green
+77,차분한,Chill,8,7,3,7,green
+78,편안한,Restful,8,8,3,8,green
+79,축복받은,Blessed,8,9,3,9,green
+80,안정적인,Balanced,8,10,3,10,green
+81,의기소침한,Despondent,9,1,2,1,blue
+82,우울한,Depressed,9,2,2,2,blue
+83,뚱한,Sullen,9,3,2,3,blue
+84,기진맥진한,Exhausted,9,4,2,4,blue
+85,지친,Fatigued,9,5,2,5,blue
+86,한가로운,Mellow,9,6,2,6,green
+87,생각에 잠긴,Thoughtful,9,7,2,7,green
+88,평화로운,Peaceful,9,8,2,8,green
+89,편한,Comfortable,9,9,2,9,green
+90,근심 걱정 없는,Carefree,9,10,2,10,green
+91,절망한,Despairing,10,1,1,1,blue
+92,가망없는,Hopeless,10,2,1,2,blue
+93,고독한,Desolate,10,3,1,3,blue
+94,소모된,Spent,10,4,1,4,blue
+95,진이 빠진,Drained,10,5,1,5,blue
+96,나른한,Sleepy,10,6,1,6,green
+97,흐뭇한,Complacent,10,7,1,7,green
+98,고요한,Tranquil,10,8,1,8,green
+99,안락한,Cozy,10,9,1,9,green
+100,안온한,Serene,10,10,1,10,green
