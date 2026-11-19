@@ -304,3 +304,38 @@ def test_feedback_daily_limit_and_cascade(client):
     with app.app_context(), db_cursor() as cur:
         cur.execute("SELECT COUNT(*) AS n FROM feedback f LEFT JOIN users u ON u.id=f.user_id WHERE u.id IS NULL")
         assert cur.fetchone()["n"] == 0
+
+
+
+def test_ai_picks_must_match_word_and_zone(client, monkeypatch):
+    """모델이 번호를 틀려도 단어(구역)가 맞으면 바로잡고, 판단할 수 없으면 버린다."""
+    import json
+    import llm
+    h, _ = new_user(client)
+    client.put("/api/consents/ai_counseling", headers=h, json={"granted": True, "version": "v1"})
+    with app.app_context(), db_cursor() as cur:
+        cur.execute("SELECT id, word_ko, zone FROM mood_words")
+        words = cur.fetchall()
+    by_ko = {}
+    for w in words:
+        by_ko.setdefault(w["word_ko"], []).append(w)
+    unique = [w for w in words if len(by_ko[w["word_ko"]]) == 1]
+    a, b = unique[0], unique[1]                                    # 서로 다른 한 칸짜리 단어
+    dup = next(v for v in by_ko.values() if len(v) == 2 and v[0]["zone"] != v[1]["zone"])    # 구역으로 구분되는 같은 단어 (예: 만족스러운)
+
+    def ask(items):
+        monkeypatch.setattr(llm, "complete", lambda *a, **k: json.dumps({"suggestions": items}, ensure_ascii=False))
+        r = client.post("/api/ai/mood-suggest", headers=h, json={"content": "배고프다"})
+        return r.status_code, [x["id"] for x in (r.get_json().get("suggestions") or [])]
+
+    # 맞는 답은 그대로
+    assert ask([{"reason": "r", "word": a["word_ko"], "zone": a["zone"], "id": a["id"]}]) == (200, [a["id"]])
+    # 번호만 틀리고 단어가 맞으면 단어로 바로잡는다
+    assert ask([{"reason": "r", "word": a["word_ko"], "zone": a["zone"], "id": b["id"]}]) == (200, [a["id"]])
+    # 같은 단어가 두 구역에 있으면 구역으로 가른다
+    d0, d1 = dup
+    assert ask([{"reason": "r", "word": d1["word_ko"], "zone": d1["zone"], "id": d0["id"]}]) == (200, [d1["id"]])
+    # 단어가 목록에 없고 번호가 다른 단어를 가리키면 버린다
+    assert ask([{"reason": "r", "word": "목록에없는단어", "zone": a["zone"], "id": b["id"]}]) == (503, [])
+    # 구역 없이 두 구역에 있는 단어만 오면 하나로 정할 수 없어서 버린다 (번호도 없음)
+    assert ask([{"reason": "r", "word": d0["word_ko"]}]) == (503, [])
