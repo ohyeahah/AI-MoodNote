@@ -1,7 +1,8 @@
--- MoodNote 스키마 v1.5 (MySQL 8.0.16 이상 기준)
+-- MoodNote 스키마 v1.6 (MySQL 8.0.16 이상 기준)
 -- 변경 기록: v1.1 최초(테이블 10개) / v1.2 daily_condition 숫자화 + caffeine_cups, menstrual_cycles, cycle_tracking 동의 추가(11개) /
 --            v1.3 daily_condition.water_cups, diary_entries.ai_suggested_word_ids 추가 (이미 만든 DB는 migrate_v1_3.sql 로 올린다). 회의 확정 필요 /
---            v1.4 diary_entries.picked_word_ids (감정 최대 3개) / v1.5 feedback 테이블 (이미 만든 DB는 migrate_v1_5.py 로 올린다)
+--            v1.4 diary_entries.picked_word_ids (감정 최대 3개) / v1.5 feedback 테이블 (이미 만든 DB는 migrate_v1_5.py 로 올린다) /
+--            v1.6 user_identities 테이블, 소셜 로그인 (이미 만든 DB는 migrate_v1_6.py 로 올린다)
 -- schema.sql(SQLite)의 MySQL 변환본. 구조와 제약은 같고, 문법만 다르다.
 -- 검증: MariaDB 10.11(MySQL 호환)에서 실행해 테이블 생성, 제약 차단, CASCADE 삭제를 확인했다.
 --       MySQL 8.0 자체에서는 아직 돌려보지 않았다. 처음 실행할 때 오류가 나면 팀에 알린다.
@@ -211,4 +212,18 @@ CREATE TABLE feedback (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_feedback_user_date (user_id, created_at),
   INDEX idx_feedback_status (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 소셜 로그인 연결(카카오/네이버/구글). 업체 이름과 그 업체 안의 사용자 번호만 저장한다. 이메일·이름은 저장하지 않는다.
+-- 사용자 한 명이 여러 업체를 연결할 수 있고, 같은 업체 계정은 한 사용자에게만 연결된다. 탈퇴하면 같이 지워진다(CASCADE).
+CREATE TABLE user_identities (
+  id               CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id          CHAR(36)     NOT NULL,
+  provider         VARCHAR(10)  NOT NULL,
+  provider_user_id VARCHAR(100) NOT NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_ident_provider CHECK (provider IN ('kakao','naver','google')),
+  UNIQUE KEY uq_ident_provider_user (provider, provider_user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_ident_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
