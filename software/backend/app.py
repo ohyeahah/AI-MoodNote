@@ -12,7 +12,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from werkzeug.exceptions import HTTPException, NotFound
 
-import account, ai, auth, diary, feedback, tracking
+import account, ai, auth, diary, feedback, social, tracking
 from common import APIError, db_cursor, error_response, now_kst
 from config import Config
 
@@ -53,7 +53,7 @@ def create_app():
     def _expired(header, payload):
         return error_response("TOKEN_EXPIRED", "로그인이 만료되었습니다. 다시 로그인해 주세요.", 401)
 
-    for module in (auth, diary, tracking, account, ai, feedback):
+    for module in (auth, social, diary, tracking, account, ai, feedback):
         app.register_blueprint(module.bp)
 
     @app.get("/api/health")
@@ -77,8 +77,11 @@ def create_app():
             if path == "api" or path.startswith("api/"):
                 raise NotFound()                              # 없는 API 주소는 화면이 아니라 JSON 404 로
             if path and (dist / path).is_file():
-                return send_from_directory(dist, path)        # js, css 같은 파일
-            return send_from_directory(dist, "index.html")    # /calendar 처럼 화면 주소는 모두 index.html
+                # 브라우저가 파일을 얼마나 오래 기억할지. 기본값은 "매번 서버에 물어보기"라서, 서버가 멀면(시드니) 파일 하나마다 왕복 시간이 든다.
+                # assets/ 는 내용이 바뀌면 파일 이름도 바뀌므로(해시) 1년, art/ 는 그림이라 하루 기억해도 안전하다.
+                age = 31536000 if path.startswith("assets/") else 86400 if path.startswith("art/") else None
+                return send_from_directory(dist, path, max_age=age)   # js, css, 그림, 글꼴 같은 파일
+            return send_from_directory(dist, "index.html", max_age=0)  # /calendar 처럼 화면 주소는 모두 index.html (이건 항상 최신으로)
 
     @app.errorhandler(APIError)
     def _api_error(e):

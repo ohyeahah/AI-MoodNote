@@ -232,3 +232,6 @@ a.btn { text-decoration: none; }
 .mood-search input { font-size: 16px; }
 .search-result { display: flex; flex-direction: column; gap: 8px; background: var(--bg); border-radius: 14px; padding: 10px; }
 .search-result .muted { margin: 0; }
+.social-btn.google { background: #fff; }
+.social-btn.naver { background: #03C75A; border-color: #03C75A; }
+.social-btn.kakao { background: #FEE500; border-color: #FEE500; }

@@ -39,3 +39,12 @@ class Config:
 
     CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
     MAX_CONTENT_LENGTH = 1 * 1024 * 1024               # 요청 본문 최대 1MB
+
+    # 소셜 로그인. 값이 비어 있는 업체는 로그인 화면에서 "준비 중"으로 보인다. (키는 .env 에만 적는다)
+    PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")   # 예) https://52-64-236-218.sslip.io
+    KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID", "")               # 카카오 REST API 키
+    KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET", "")       # 카카오는 Client Secret 을 켠 경우에만 필요
+    NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
+    NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")

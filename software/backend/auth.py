@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from common import APIError, db_cursor, is_duplicate_error, json_body, req_text
+from common import NO_PASSWORD, APIError, db_cursor, is_duplicate_error, json_body, req_text
 
 bp = Blueprint("auth", __name__)
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{4,64}$")
@@ -63,8 +63,11 @@ def update_me():
 @jwt_required()
 def me():
     with db_cursor() as cur:
-        cur.execute("SELECT id, nickname, login_id, created_at FROM users WHERE id=%s", (get_jwt_identity(),))
+        cur.execute("SELECT id, nickname, login_id, password_hash, created_at FROM users WHERE id=%s", (get_jwt_identity(),))
         user = cur.fetchone()
-    if not user:
-        raise APIError("사용자를 찾을 수 없습니다.", "NOT_FOUND", 404)
+        if not user:
+            raise APIError("사용자를 찾을 수 없습니다.", "NOT_FOUND", 404)
+        cur.execute("SELECT provider FROM user_identities WHERE user_id=%s ORDER BY created_at", (user["id"],))
+        user["login_methods"] = [r["provider"] for r in cur.fetchall()]   # 연결된 소셜 로그인 (예: ["kakao"])
+    user["has_password"] = user.pop("password_hash") != NO_PASSWORD        # 소셜로만 만든 계정은 비밀번호가 없다
     return jsonify({"success": True, "user": user})

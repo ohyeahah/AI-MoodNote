@@ -14,6 +14,10 @@ CONSENT_TYPES = ("diary_storage", "voice_processing", "ai_counseling",
                  "expert_export", "ai_training", "cycle_tracking")
 
 
+# 소셜 로그인으로 만든 계정은 비밀번호가 없다. password_hash 에 이 값을 넣어 두면 어떤 비밀번호와도 맞지 않는다.
+NO_PASSWORD = "!"
+
+
 # ---------- 시간 ----------
 def now_kst():
     return datetime.now(KST)

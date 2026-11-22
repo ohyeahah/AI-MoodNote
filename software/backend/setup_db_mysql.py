@@ -29,8 +29,8 @@ from pymysql.constants import CLIENT
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = "moodnote"
-EXPECTED_TABLES = 12  # users, user_profile, relationships, mood_words, diary_entries, ai_feedback,
-                      # daily_condition, menstrual_cycles, self_model, safety_events, consents, feedback
+EXPECTED_TABLES = 13  # users, user_profile, relationships, mood_words, diary_entries, ai_feedback,
+                      # daily_condition, menstrual_cycles, self_model, safety_events, consents, feedback, user_identities
 
 
 def parse_args():

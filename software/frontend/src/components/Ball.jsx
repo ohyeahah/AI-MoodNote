@@ -5,6 +5,14 @@ import React from 'react';
 // 그림은 장식이고 감정 이름은 옆의 글자가 알려 주므로 alt 는 비워 둔다.
 export const ballSrc = (id) => `/art/balls/ball_${String(id).padStart(3, '0')}.png`;
 
+// 앱을 켜면 공 그림 100개를 한가한 때에 미리 받아 둔다. (서버가 멀어서 그림을 하나씩 받으면 공이 하나둘 늦게 뜨기 때문)
+// 한 번 받은 그림은 브라우저가 기억하므로(서버의 캐시 설정), 이후에는 달력·감정 고르기 창에서 바로 보인다.
+export function preloadBalls() {
+  const run = () => { for (let id = 1; id <= 100; id += 1) { const img = new Image(); img.src = ballSrc(id); } };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 });
+  else setTimeout(run, 800);
+}
+
 export default function Ball({ id, size = 36, className = '' }) {
   if (!id) return null;
   return (

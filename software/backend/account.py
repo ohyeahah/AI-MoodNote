@@ -5,9 +5,10 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from werkzeug.security import check_password_hash
 
-from common import CONSENT_TYPES, APIError, db_cursor, decrypt, json_body, now_kst, req_text
+from common import CONSENT_TYPES, NO_PASSWORD, APIError, db_cursor, decrypt, json_body, now_kst, req_text
 
 bp = Blueprint("account", __name__)
+DELETE_PHRASE = "탈퇴합니다"      # 비밀번호가 없는(소셜) 계정이 탈퇴할 때 입력하는 문장. 화면에도 같은 문장이 있다.
 
 
 @bp.get("/api/consents")
@@ -77,6 +78,8 @@ def export_my_data():
         consents = cur.fetchall()
         cur.execute("SELECT category, rating, message, created_at FROM feedback WHERE user_id=%s ORDER BY created_at", (user_id,))
         user_feedback = cur.fetchall()
+        cur.execute("SELECT provider, provider_user_id, created_at FROM user_identities WHERE user_id=%s ORDER BY created_at", (user_id,))
+        identities = cur.fetchall()
 
     for d in diaries:
         for col in ("content", "trigger_event", "automatic_thought"):
@@ -86,21 +89,25 @@ def export_my_data():
     return jsonify({"success": True, "exported_at": now_kst(), "data": {
         "user": user, "profile": profile, "diaries": diaries, "ai_feedback": feedback,
         "daily_conditions": conditions, "menstrual_cycles": cycles, "consents": consents,
-        "user_feedback": user_feedback}})
+        "user_feedback": user_feedback, "social_logins": identities}})
 
 
 @bp.delete("/api/users/me")
 @jwt_required()
 def delete_account():
-    """회원 탈퇴. 비밀번호를 한 번 더 확인하고, users 행을 지우면 딸린 데이터가 모두 같이 지워진다(CASCADE)."""
+    """회원 탈퇴. 비밀번호를 한 번 더 확인하고, users 행을 지우면 딸린 데이터가 모두 같이 지워진다(CASCADE).
+    소셜 로그인으로만 만든 계정은 비밀번호가 없으므로, 대신 '탈퇴합니다' 를 직접 입력해야 한다."""
     user_id = get_jwt_identity()
-    password = req_text(json_body(), "password", 1, 128)
+    data = json_body()
     with db_cursor() as cur:
         cur.execute("SELECT password_hash FROM users WHERE id=%s", (user_id,))
         user = cur.fetchone()
         if not user:
             raise APIError("사용자를 찾을 수 없습니다.", "NOT_FOUND", 404)
-        if not check_password_hash(user["password_hash"], password):
+        if user["password_hash"] == NO_PASSWORD:
+            if data.get("confirm") != DELETE_PHRASE:
+                raise APIError(f"확인을 위해 '{DELETE_PHRASE}' 를 입력해 주세요.", "CONFIRM_REQUIRED", 400)
+        elif not check_password_hash(user["password_hash"], req_text(data, "password", 1, 128)):
             raise APIError("비밀번호가 올바르지 않습니다.", "AUTH_FAILED", 401)
         cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
     return jsonify({"success": True})

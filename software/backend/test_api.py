@@ -20,6 +20,7 @@ def client():
         yield c
     with app.app_context(), db_cursor() as cur:         # 테스트가 만든 사용자 삭제 (딸린 데이터도 CASCADE 로 삭제)
         cur.execute("DELETE FROM users WHERE login_id LIKE 'pytest\\_%'")
+        cur.execute("DELETE FROM users WHERE id IN (SELECT user_id FROM user_identities WHERE provider_user_id LIKE 'pytest-%')")   # 소셜 로그인 시험 사용자
 
 
 def new_user(client, consents=("diary_storage",)):
@@ -339,3 +340,130 @@ def test_ai_picks_must_match_word_and_zone(client, monkeypatch):
     assert ask([{"reason": "r", "word": "목록에없는단어", "zone": a["zone"], "id": b["id"]}]) == (503, [])
     # 구역 없이 두 구역에 있는 단어만 오면 하나로 정할 수 없어서 버린다 (번호도 없음)
     assert ask([{"reason": "r", "word": d0["word_ko"]}]) == (503, [])
+
+
+# ---------- 소셜 로그인 (업체 서버는 가짜로 바꿔 끼운다) ----------
+import social   # noqa: E402
+from urllib.parse import parse_qs, urlparse   # noqa: E402
+
+
+@pytest.fixture
+def social_on(monkeypatch):
+    """세 업체 키가 다 있는 것처럼 설정하고, 업체 서버 대신 가짜 응답을 돌려준다. pid 를 바꾸면 다른 사람이 로그인한다."""
+    cfg = {"PUBLIC_BASE_URL": "https://example.test", "KAKAO_CLIENT_ID": "k", "KAKAO_CLIENT_SECRET": "",
+           "NAVER_CLIENT_ID": "n", "NAVER_CLIENT_SECRET": "ns", "GOOGLE_CLIENT_ID": "g", "GOOGLE_CLIENT_SECRET": "gs"}
+    for k, v in cfg.items():
+        monkeypatch.setitem(app.config, k, v)
+    fake = {"pid": "pytest-" + uuid.uuid4().hex[:10], "calls": []}
+
+    def _http(url, data=None, headers=None, method="POST"):
+        fake["calls"].append((url, data, headers, method))
+        if "token" in url:
+            return {"access_token": "AT"}
+        if "kakao" in url:
+            return {"id": fake["pid"]}                    # 카카오는 숫자 id
+        if "naver" in url:
+            return {"resultcode": "00", "response": {"id": fake["pid"]}}
+        return {"sub": fake["pid"]}                       # 구글
+    monkeypatch.setattr(social, "_http", _http)
+    return fake
+
+
+def social_login(client, provider):
+    """start → callback 을 거쳐 (토큰 또는 오류 코드)를 돌려준다."""
+    r = client.get(f"/api/auth/{provider}/start")
+    assert r.status_code == 302
+    state = parse_qs(urlparse(r.headers["Location"]).query)["state"][0]
+    r = client.get(f"/api/auth/{provider}/callback?code=CODE&state={state}")
+    assert r.status_code == 302
+    frag = parse_qs(urlparse(r.headers["Location"]).fragment)
+    return frag.get("token", [None])[0], frag.get("error", [None])[0]
+
+
+def test_social_providers_status(client, monkeypatch):
+    for k in ("PUBLIC_BASE_URL", "KAKAO_CLIENT_ID", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"):
+        monkeypatch.setitem(app.config, k, "")
+    assert client.get("/api/auth/providers").get_json()["providers"] == {"kakao": False, "naver": False, "google": False}
+    r = client.get("/api/auth/kakao/start")      # 키가 없으면 업체로 보내지 않고 화면으로 돌려보낸다
+    assert r.status_code == 302 and "error=unavailable" in r.headers["Location"]
+    monkeypatch.setitem(app.config, "PUBLIC_BASE_URL", "https://example.test")
+    monkeypatch.setitem(app.config, "KAKAO_CLIENT_ID", "k")           # 카카오는 secret 없이도 켜진다
+    monkeypatch.setitem(app.config, "NAVER_CLIENT_ID", "n")           # 네이버는 secret 이 없으면 꺼진 채
+    assert client.get("/api/auth/providers").get_json()["providers"] == {"kakao": True, "naver": False, "google": False}
+    r = client.get("/api/auth/naver/start")                          # 네이버는 꺼져 있으니 업체로 가지 않고, 새 state 도 만들지 않는다
+    assert "error=unavailable" in r.headers["Location"] and "Max-Age=0" in r.headers.get("Set-Cookie", "")
+
+
+def test_social_start_url(client, social_on):
+    for provider, host in (("kakao", "kauth.kakao.com"), ("naver", "nid.naver.com"), ("google", "accounts.google.com")):
+        r = client.get(f"/api/auth/{provider}/start")
+        loc = urlparse(r.headers["Location"])
+        q = parse_qs(loc.query)
+        assert loc.netloc == host
+        assert q["redirect_uri"] == [f"https://example.test/api/auth/{provider}/callback"]
+        assert q["response_type"] == ["code"] and q["state"][0] in r.headers["Set-Cookie"]
+        assert "HttpOnly" in r.headers["Set-Cookie"] and "Secure" in r.headers["Set-Cookie"]
+        assert ("scope" in q) == (provider == "google") and q.get("scope", ["openid"]) == ["openid"]   # 구글은 openid 만
+
+
+@pytest.mark.parametrize("provider", ["kakao", "naver", "google"])
+def test_social_login_creates_user_then_reuses(client, social_on, provider):
+    token, err = social_login(client, provider)
+    assert err is None and token
+    h = {"Authorization": f"Bearer {token}"}
+    me = client.get("/api/users/me", headers=h).get_json()["user"]
+    assert me["has_password"] is False and me["login_methods"] == [provider] and "password_hash" not in me
+    assert me["login_id"].startswith(f"social:{provider}:")
+    assert client.get("/api/consents", headers=h).get_json()["consents"]["diary_storage"]["granted"] is False   # 새 사용자는 동의 화면부터
+    token2, _ = social_login(client, provider)                      # 같은 업체 계정으로 다시 → 같은 사용자
+    me2 = client.get("/api/users/me", headers={"Authorization": f"Bearer {token2}"}).get_json()["user"]
+    assert me2["id"] == me["id"]
+    social_on["pid"] = "pytest-" + uuid.uuid4().hex[:10]            # 다른 사람 → 다른 사용자
+    token3, _ = social_login(client, provider)
+    assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token3}"}).get_json()["user"]["id"] != me["id"]
+    # 업체에 보낸 요청: access token 으로 사용자 정보를 읽었고, code 와 redirect_uri 를 같이 보냈다
+    token_call = [c for c in social_on["calls"] if "token" in c[0]][0]
+    assert token_call[1]["code"] == "CODE" and token_call[1]["redirect_uri"].endswith(f"/api/auth/{provider}/callback")
+    assert social_on["calls"][1][2] == {"Authorization": "Bearer AT"}
+
+
+def test_social_callback_rejects_bad_state_and_errors(client, social_on):
+    client.get("/api/auth/kakao/start")
+    r = client.get("/api/auth/kakao/callback?code=C&state=wrong")
+    assert "error=state" in r.headers["Location"] and not social_on["calls"]
+    fresh = app.test_client()                                        # 쿠키가 없는 브라우저(남이 만든 링크)
+    assert "error=state" in fresh.get("/api/auth/kakao/callback?code=C&state=abc").headers["Location"]
+    assert "error=cancelled" in client.get("/api/auth/kakao/callback?error=access_denied&state=x").headers["Location"]
+    assert "error=unavailable" in client.get("/api/auth/apple/start").headers["Location"]      # Apple 은 없다
+
+
+def test_social_provider_failure_gives_error(client, social_on, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("provider down")
+    monkeypatch.setattr(social, "_http", boom)
+    token, err = social_login(client, "google")
+    assert token is None and err == "provider"
+
+
+def test_social_account_cannot_password_login_and_deletes_with_phrase(client, social_on):
+    token, _ = social_login(client, "kakao")
+    h = {"Authorization": f"Bearer {token}"}
+    login_id = client.get("/api/users/me", headers=h).get_json()["user"]["login_id"]
+    for pw in ("!", "password123", "social"):
+        assert client.post("/api/auth/login", json={"login_id": login_id, "password": pw}).status_code == 401
+    assert client.delete("/api/users/me", headers=h, json={"password": "x"}).status_code == 400
+    assert client.delete("/api/users/me", headers=h, json={"confirm": "탈퇴"}).status_code == 400
+    export = client.get("/api/users/me/export", headers=h).get_json()["data"]
+    assert [i["provider"] for i in export["social_logins"]] == ["kakao"]
+    assert client.delete("/api/users/me", headers=h, json={"confirm": "탈퇴합니다"}).status_code == 200
+    with app.app_context(), db_cursor() as cur:                      # 연결 정보도 같이 지워졌다 (CASCADE)
+        cur.execute("SELECT COUNT(*) AS n FROM user_identities WHERE provider_user_id=%s", (social_on["pid"],))
+        assert cur.fetchone()["n"] == 0
+
+
+def test_password_account_unchanged_by_social(client):
+    h, _ = new_user(client)
+    me = client.get("/api/users/me", headers=h).get_json()["user"]
+    assert me["has_password"] is True and me["login_methods"] == []
+    assert client.delete("/api/users/me", headers=h, json={"confirm": "탈퇴합니다"}).status_code == 400     # 비밀번호 계정은 문구로 탈퇴할 수 없다
+    assert client.delete("/api/users/me", headers=h, json={"password": "password123"}).status_code == 200

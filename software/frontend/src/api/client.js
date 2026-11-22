@@ -8,6 +8,26 @@ export const setToken = (t) => {
   try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* 저장이 막힌 환경 */ }
 };
 
+// 소셜 로그인이 끝나고 돌아온 주소(/auth/done#token=... 또는 #error=...)를 처리한다. 화면이 뜨기 전에 main.jsx 에서 한 번 부른다.
+const SOCIAL_ERRORS = {
+  cancelled: '로그인을 취소했어요.',
+  state: '로그인 확인에 실패했어요. 처음부터 다시 눌러 주세요.',
+  provider: '로그인 서비스와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  unavailable: '이 로그인은 아직 준비 중이에요. 아이디로 로그인하거나 가입해 주세요.',
+};
+let socialError = '';
+export const getSocialError = () => socialError;
+export const clearSocialError = () => { socialError = ''; };
+export function consumeSocialRedirect() {
+  if (window.location.pathname !== '/auth/done') return;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  if (params.get('token')) setToken(params.get('token'));
+  else socialError = SOCIAL_ERRORS[params.get('error')] || '로그인하지 못했어요. 다시 시도해 주세요.';
+  window.history.replaceState(null, '', '/');      // 주소창에서 토큰을 바로 지운다
+}
+
+export const apiUrl = (endpoint) => `${BASE_URL}${endpoint}`;
+
 function makeError(message, status, code) {
   const e = new Error(message);
   e.status = status;
