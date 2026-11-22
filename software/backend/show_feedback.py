@@ -12,7 +12,7 @@ import pymysql
 
 from config import Config
 
-CATEGORY_KO = {"bug": "불편한 점", "idea": "바라는 점", "praise": "좋은 점", "other": "기타"}
+CATEGORY_KO = {"bug": "Problem", "idea": "Wish", "praise": "Praise", "other": "Other"}   # 화면에 영어로 보이게 (서버 터미널 글꼴이 한글을 못 그리는 경우가 있다)
 
 
 def connect():
@@ -29,10 +29,10 @@ def fetch(cur, only_new):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="받은 의견 읽기")
-    ap.add_argument("--all", action="store_true", help="처리한 의견도 보기")
-    ap.add_argument("--csv", metavar="파일", help="CSV 로 저장")
-    ap.add_argument("--done", metavar="번호", help="의견 번호(앞부분)를 '처리함'으로 표시")
+    ap = argparse.ArgumentParser(description="Read received feedback")
+    ap.add_argument("--all", action="store_true", help="also show items marked done")
+    ap.add_argument("--csv", metavar="FILE", help="save as CSV")
+    ap.add_argument("--done", metavar="ID", help="mark the feedback (ID prefix) as done")
     a = ap.parse_args()
 
     conn = connect()
@@ -41,11 +41,11 @@ def main():
             cur.execute("SELECT id FROM feedback WHERE id LIKE %s", (a.done.replace("%", "") + "%",))
             found = cur.fetchall()
             if len(found) != 1:
-                sys.exit(f"[중단] '{a.done}' 로 시작하는 의견이 {len(found)}개예요. 번호를 더 길게 써 주세요." if found
-                         else f"[중단] '{a.done}' 로 시작하는 의견이 없어요.")
+                sys.exit(f"[ABORTED] {len(found)} items start with '{a.done}'. Please type a longer ID." if found
+                         else f"[ABORTED] No feedback starts with '{a.done}'.")
             cur.execute("UPDATE feedback SET status='done' WHERE id=%s", (found[0]["id"],))
             conn.commit()
-            print("처리함으로 표시했어요.")
+            print("Marked as done.")
             return
 
         rows = fetch(cur, only_new=not (a.all or a.csv))
@@ -53,23 +53,23 @@ def main():
     if a.csv:
         with open(a.csv, "w", newline="", encoding="utf-8-sig") as f:      # utf-8-sig: 엑셀에서 한글이 깨지지 않게
             w = csv.writer(f)
-            w.writerow(["번호", "시각", "종류", "별점", "닉네임", "아이디", "상태", "내용"])
+            w.writerow(["id", "time", "category", "rating", "nickname", "login_id", "status", "message"])
             for r in rows:
                 w.writerow([r["id"][:8], r["created_at"], CATEGORY_KO[r["category"]], r["rating"] or "",
-                            r["nickname"], r["login_id"], "처리함" if r["status"] == "done" else "새 의견", r["message"]])
-        print(f"{len(rows)}개를 {a.csv} 에 저장했어요.")
+                            r["nickname"], r["login_id"], "done" if r["status"] == "done" else "new", r["message"]])
+        print(f"Saved {len(rows)} items to {a.csv}.")
         return
 
     if not rows:
-        print("새 의견이 없어요." if not a.all else "의견이 아직 없어요.")
+        print("No new feedback." if not a.all else "No feedback yet.")
         return
     for r in rows:
-        stars = f"  별점 {r['rating']}/5" if r["rating"] else ""
-        done = "  (처리함)" if r["status"] == "done" else ""
+        stars = f"  rating {r['rating']}/5" if r["rating"] else ""
+        done = "  (done)" if r["status"] == "done" else ""
         print(f"[{r['id'][:8]}] {r['created_at']:%Y-%m-%d %H:%M}  {CATEGORY_KO[r['category']]}{stars}  - {r['nickname']}{done}")
         print("    " + r["message"].replace("\n", "\n    "))
         print()
-    print(f"총 {len(rows)}개. 처리한 의견은 python3 show_feedback.py --done 번호 로 표시해요.")
+    print(f"Total {len(rows)}. To mark one as done: python3 show_feedback.py --done ID")
 
 
 if __name__ == "__main__":

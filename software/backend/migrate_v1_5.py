@@ -11,11 +11,11 @@ import pymysql
 
 
 def main():
-    pw = os.environ.get("DB_ADMIN_PASSWORD") or getpass.getpass("root 비밀번호: ")
+    pw = os.environ.get("DB_ADMIN_PASSWORD") or getpass.getpass("root password: ")
     try:
         conn = pymysql.connect(host="127.0.0.1", user="root", password=pw, database="moodnote")
     except pymysql.err.OperationalError as e:
-        sys.exit(f"[중단] DB에 연결하지 못했어요: {e}")
+        sys.exit(f"[ABORTED] Could not connect to the DB: {e}")
 
     # migrate_v1_5.sql 에서 USE 줄과 주석을 빼고 CREATE TABLE 문 하나를 그대로 실행한다. (SQL 이 한 곳에만 있게)
     sql_path = pathlib.Path(__file__).with_name("migrate_v1_5.sql")
@@ -27,8 +27,8 @@ def main():
         ok = cur.fetchone()[0] == 1
     conn.commit()
     conn.close()
-    print("- feedback 테이블: 준비됐어요" if ok else "- feedback 테이블: 만들지 못했어요")
-    print("완료")
+    print("- feedback table: ready" if ok else "- feedback table: could not be created")
+    print("Done")
 
 
 if __name__ == "__main__":
