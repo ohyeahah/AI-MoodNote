@@ -227,3 +227,8 @@ a.btn { text-decoration: none; }
 .ym-pick select { width: auto; min-width: 0; font-weight: 800; font-size: 20px; padding: 6px 8px; }
 .cal-day.selected { outline: 3px solid var(--primary); outline-offset: -1px; border-radius: 12px; }
 .comment-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+
+/* 감정 검색 (감정 고르기 창 맨 위) */
+.mood-search input { font-size: 16px; }
+.search-result { display: flex; flex-direction: column; gap: 8px; background: var(--bg); border-radius: 14px; padding: 10px; }
+.search-result .muted { margin: 0; }
