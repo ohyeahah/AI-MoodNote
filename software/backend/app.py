@@ -12,7 +12,7 @@ from flask_jwt_extended import JWTManager
 from werkzeug.exceptions import HTTPException
 
 import account, auth, diary, tracking
-from common import APIError, db_cursor, error_response, now_kst
+from common import APIError, db_cursor, error_response, limiter, now_kst
 from config import Config
 
 
@@ -37,6 +37,7 @@ def create_app():
     app.json = MoodJSON(app)
     app.extensions["fernet"] = Fernet(app.config["ENCRYPTION_KEY"].encode())   # 키가 잘못됐으면 여기서 바로 멈춘다
     CORS(app, origins=app.config["CORS_ORIGINS"])
+    limiter.init_app(app)
 
     jwt = JWTManager(app)
 
@@ -69,6 +70,9 @@ def create_app():
     @app.errorhandler(APIError)
     def _api_error(e):
         return error_response(e.code, e.message, e.status_code)
+    @app.errorhandler(429)
+    def _rate_limit(e):
+        return error_response("RATE_LIMIT_EXCEEDED", "요청 횟수가 너무 많아요. 잠시 후 다시 시도해 주세요.", 429)
 
     @app.errorhandler(HTTPException)
     def _http_error(e):                # 없는 주소(404), 잘못된 방식(405) 등도 같은 JSON 모양으로

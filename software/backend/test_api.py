@@ -7,7 +7,7 @@ from datetime import timedelta
 import pytest
 
 from app import app
-from common import db_cursor, today_kst
+from common import db_cursor, limiter, today_kst
 
 if app.config["APP_ENV"] == "production":
     raise RuntimeError("운영 환경에서는 테스트를 돌리지 않습니다.")
@@ -16,6 +16,7 @@ if app.config["APP_ENV"] == "production":
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
+    limiter.enabled = False
     with app.test_client() as c:
         yield c
     with app.app_context(), db_cursor() as cur:         # 테스트가 만든 사용자 삭제 (딸린 데이터도 CASCADE 로 삭제)

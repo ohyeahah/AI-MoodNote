@@ -6,3 +6,4 @@ cryptography==43.0.1
 python-dotenv==1.0.1
 tzdata==2024.2
 pytest==8.3.3
+Flask-Limiter==3.8.0

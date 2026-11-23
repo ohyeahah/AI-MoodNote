@@ -39,3 +39,4 @@ class Config:
 
     CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
     MAX_CONTENT_LENGTH = 1 * 1024 * 1024               # 요청 본문 최대 1MB
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")

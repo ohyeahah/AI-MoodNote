@@ -6,8 +6,11 @@ from zoneinfo import ZoneInfo
 import pymysql
 from cryptography.fernet import InvalidToken
 from flask import current_app, jsonify, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 KST = ZoneInfo("Asia/Seoul")
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
 # 스키마의 consents.consent_type CHECK 와 같은 목록이어야 한다.
 CONSENT_TYPES = ("diary_storage", "voice_processing", "ai_counseling",

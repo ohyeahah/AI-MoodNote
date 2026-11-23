@@ -6,13 +6,14 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from common import APIError, db_cursor, is_duplicate_error, json_body, req_text
+from common import APIError, db_cursor, is_duplicate_error, json_body, req_text, limiter
 
 bp = Blueprint("auth", __name__)
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{4,64}$")
 
 
 @bp.post("/api/auth/signup")
+@limiter.limit("5 per minute")
 def signup():
     data = json_body()
     login_id = req_text(data, "login_id", 4, 64)
@@ -35,6 +36,7 @@ def signup():
 
 
 @bp.post("/api/auth/login")
+@limiter.limit("10 per minute")
 def login():
     data = json_body()
     login_id = req_text(data, "login_id", 1, 64)
