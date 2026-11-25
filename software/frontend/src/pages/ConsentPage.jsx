@@ -6,6 +6,7 @@ export default function ConsentPage() {
   const { user, setConsent, logout } = useAuth();
   const [storage, setStorage] = useState(false);
   const [ai, setAi] = useState(false);
+  const [research, setResearch] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -14,6 +15,7 @@ export default function ConsentPage() {
     try {
       await setConsent('diary_storage', true);
       if (ai) await setConsent('ai_counseling', true);
+      if (research) await setConsent('ai_training', true);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -36,6 +38,14 @@ export default function ConsentPage() {
         <input type="checkbox" checked={ai} onChange={(e) => setAi(e.target.checked)} />
         <span><b>[선택] AI 감정 추천</b><br />
           <span className="muted small">추천을 누를 때만 그 일기 내용이 외부 AI 서비스로 전송돼요. 동의하지 않아도 모든 기능을 쓸 수 있어요.</span></span>
+      </label>
+
+      <label className="check card">
+        <input type="checkbox" checked={research} onChange={(e) => setResearch(e.target.checked)} />
+        <span><b>[선택] 연구 활용</b><br />
+          <span className="muted small">일기를 쓸 때 "이 일기를 연구에 써도 돼요"를 직접 체크한 일기만, 이름·아이디 같은 정보를 뺀 채 연구에 쓰여요.
+            체크하지 않은 일기는 쓰이지 않아요. 설정에서 언제든 끌 수 있고, 끄면 모든 일기가 연구에서 빠져요.
+            다만 이미 익명으로 분석에 들어간 자료는 되돌리기 어려울 수 있어요. 동의하지 않아도 모든 기능을 쓸 수 있어요.</span></span>
       </label>
 
       <p className="muted small">MoodNote는 기록을 돕는 앱이고, 의료 서비스나 진단 도구가 아니에요.</p>

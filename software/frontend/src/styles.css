@@ -235,3 +235,7 @@ a.btn { text-decoration: none; }
 .social-btn.google { background: #fff; }
 .social-btn.naver { background: #03C75A; border-color: #03C75A; }
 .social-btn.kakao { background: #FEE500; border-color: #FEE500; }
+
+/* 연구 활용 선택 */
+.research-toggle { padding: 4px 2px; }
+.sub-check { margin-left: 26px; }

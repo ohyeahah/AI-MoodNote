@@ -13,7 +13,7 @@ bp = Blueprint("diary", __name__)
 # 일기 + 무드 단어를 한 번에 가져오는 공통 조회문
 DIARY_SELECT = """
     SELECT d.id, d.entry_date, d.content, d.trigger_event, d.automatic_thought, d.source, d.ai_suggested_word_ids,
-           d.created_at, d.updated_at, d.mood_word_id, d.picked_word_ids,
+           d.created_at, d.updated_at, d.mood_word_id, d.picked_word_ids, d.research_use,
            m.word_ko, m.word_en, m.grid_row, m.grid_col, m.energy, m.pleasantness, m.zone
     FROM diary_entries d
     LEFT JOIN mood_words m ON m.id = d.mood_word_id
@@ -42,6 +42,7 @@ def shape_diary(r, words=None):
         "content": decrypt(r["content"]),
         "trigger_event": decrypt(r["trigger_event"]),
         "automatic_thought": decrypt(r["automatic_thought"]),
+        "research_use": bool(r["research_use"]),
         "mood": mood, "mood_words": picked, "created_at": r["created_at"], "updated_at": r["updated_at"],
         "ai_suggested_word_ids": [int(i) for i in r["ai_suggested_word_ids"].split(",")] if r["ai_suggested_word_ids"] else [],
     }
@@ -95,6 +96,31 @@ def check_mood_word(cur, mood_word_id):
         raise APIError("존재하지 않는 무드 단어예요 (1~100).", "INVALID_MOOD_WORD")
 
 
+def has_research_consent(cur, user_id):
+    """연구 활용 동의(consents 의 ai_training 항목)가 지금 켜져 있는지."""
+    cur.execute("SELECT 1 FROM consents WHERE user_id=%s AND consent_type='ai_training' AND revoked_at IS NULL LIMIT 1", (user_id,))
+    return cur.fetchone() is not None
+
+
+def research_value(cur, user_id, data, creating):
+    """이 일기를 연구에 써도 되는지(0/1). 보내지 않았으면 새 일기는 내 기본 선택을, 수정은 None(바꾸지 않음)을 돌려준다.
+    규칙: 연구 활용 동의가 켜져 있을 때만 1 이 될 수 있다. 동의가 없으면 언제나 0 이다."""
+    wants = data.get("research_use")
+    if wants is not None and not isinstance(wants, bool):
+        raise APIError("'research_use' 는 true 또는 false 여야 해요.")
+    consented = has_research_consent(cur, user_id)
+    if wants is True and not consented:
+        raise APIError("연구 활용에 동의해야 일기를 연구에 쓸 수 있어요.", "CONSENT_REQUIRED", 403)
+    if wants is None:
+        if not creating:
+            return None
+        if not consented:
+            return 0
+        cur.execute("SELECT research_default FROM users WHERE id=%s", (user_id,))
+        return int(bool(cur.fetchone()["research_default"]))
+    return int(wants)
+
+
 @bp.get("/api/mood-words")
 def mood_words():
     """로그인 없이 볼 수 있는 참조 데이터. 위쪽(grid_row 1)이 에너지 높음."""
@@ -123,11 +149,12 @@ def create_diary():
     with db_cursor() as cur:
         require_consent(cur, user_id, "diary_storage")
         picked, mood_word_id = mood_fields(cur, data) or (None, None)     # 음성 일기는 나중에 고르므로 비워도 된다
+        research = research_value(cur, user_id, data, creating=True)
         cur.execute(
             "INSERT INTO diary_entries (id, user_id, mood_word_id, picked_word_ids, entry_date, content, source, "
-            "trigger_event, automatic_thought, ai_suggested_word_ids) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "trigger_event, automatic_thought, ai_suggested_word_ids, research_use) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (diary_id, user_id, mood_word_id, picked, entry_date, encrypt(content), source,
-             encrypt(trigger_event), encrypt(automatic_thought), ai_ids))
+             encrypt(trigger_event), encrypt(automatic_thought), ai_ids, research))
     return jsonify({"success": True, "diary_id": diary_id}), 201
 
 
@@ -184,8 +211,9 @@ def update_diary(diary_id):
     if "ai_suggested_word_ids" in data:
         sets.append("ai_suggested_word_ids=%s"); values.append(parse_word_ids(data["ai_suggested_word_ids"]))
     wants_mood = "mood_word_ids" in data or "mood_word_id" in data
-    if not sets and not wants_mood:
-        raise APIError("고칠 항목이 없어요 (content, trigger_event, automatic_thought, mood_word_ids, ai_suggested_word_ids).")
+    wants_research = "research_use" in data
+    if not sets and not wants_mood and not wants_research:
+        raise APIError("고칠 항목이 없어요 (content, trigger_event, automatic_thought, mood_word_ids, ai_suggested_word_ids, research_use).")
 
     with db_cursor() as cur:
         require_consent(cur, user_id, "diary_storage")
@@ -195,6 +223,8 @@ def update_diary(diary_id):
         if wants_mood:
             picked, mood_word_id = mood_fields(cur, data)
             sets += ["mood_word_id=%s", "picked_word_ids=%s"]; values += [mood_word_id, picked]
+        if wants_research:
+            sets.append("research_use=%s"); values.append(research_value(cur, user_id, data, creating=False))
         cur.execute(f"UPDATE diary_entries SET {', '.join(sets)} WHERE id=%s AND user_id=%s",
                     (*values, diary_id, user_id))
     return jsonify({"success": True})

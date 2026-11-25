@@ -5,6 +5,7 @@ import AiSuggest from '../components/AiSuggest';
 import MoodField from '../components/MoodField';
 import Art from '../components/Art';
 import MoodSelectorModal from '../components/MoodSelectorModal';
+import ResearchToggle from '../components/ResearchToggle';
 import Scale from '../components/Scale';
 import { formatKo, todayKST } from '../lib/dates';
 import { MAX_MOODS } from '../lib/mood';
@@ -27,8 +28,9 @@ function condToPayload(c) {
 }
 
 export default function TodayPage() {
-  const { consents } = useAuth();
+  const { consents, user } = useAuth();
   const aiConsent = !!consents?.ai_counseling?.granted;
+  const researchConsent = !!consents?.ai_training?.granted;
   const today = todayKST();
   const [date, setDate] = useState(today);          // 기록할 날짜 (기본은 오늘, 지난 날로 바꿀 수 있다)
   const isToday = date === today;
@@ -38,6 +40,9 @@ export default function TodayPage() {
   const [aiIds, setAiIds] = useState([]);           // 이번 일기에서 AI가 추천한 단어 id
   const [diaryId, setDiaryId] = useState(null);     // 있으면 수정, 없으면 새로 저장
   const [cond, setCond] = useState(EMPTY);
+  const [researchChoice, setResearchChoice] = useState(null);   // 이번에 직접 고른 값 (null 이면 아직 안 건드림)
+  const [researchStored, setResearchStored] = useState(null);   // 저장된 일기의 값 (새 일기면 null)
+  const research = researchChoice ?? researchStored ?? !!user?.research_default;   // 새 일기는 내 '기본 선택'으로 시작
   const [modal, setModal] = useState(false);
   const [msg, setMsg] = useState(null);             // { type: 'ok' | 'error', text }
   const [saving, setSaving] = useState(false);
@@ -45,7 +50,7 @@ export default function TodayPage() {
 
   const load = useCallback(async () => {
     // 날짜를 바꿀 때마다 이전 날의 내용이 남지 않도록 먼저 비운다.
-    setLoaded(false); setDiaryId(null); setContent(''); setMoods([]); setAiIds([]); setCond(EMPTY); setMsg(null);
+    setLoaded(false); setDiaryId(null); setContent(''); setMoods([]); setAiIds([]); setCond(EMPTY); setMsg(null); setResearchChoice(null); setResearchStored(null);
     try {
       const [d, c] = await Promise.all([
         apiRequest(`/api/diaries?date=${date}`),
@@ -56,6 +61,7 @@ export default function TodayPage() {
         setDiaryId(latest.id); setContent(latest.content || '');
         setMoods((latest.mood_words || []).map((w) => ({ id: w.id, word_ko: w.word_ko, zone: w.zone })));
         setAiIds(latest.ai_suggested_word_ids || []);
+        setResearchStored(!!latest.research_use);
       }
       const self = c.conditions.find((r) => r.source === 'self');
       if (self) {
@@ -82,7 +88,7 @@ export default function TodayPage() {
     setMsg(null); setMoods((prev) => [...prev, m]);
   };
   const changeDate = (v) => { if (v && v <= today) setDate(v); };   // 미래 날짜는 서버가 막으므로 여기서도 막는다
-  const startNew = () => { setDiaryId(null); setContent(''); setMoods([]); setAiIds([]); setMsg(null); };
+  const startNew = () => { setDiaryId(null); setContent(''); setMoods([]); setAiIds([]); setMsg(null); setResearchChoice(null); setResearchStored(null); };
   const setNum = (k) => (e) => setCond((p) => ({ ...p, [k]: e.target.value }));
 
   const save = async (e) => {
@@ -97,7 +103,7 @@ export default function TodayPage() {
       if (Object.keys(payload).length) {
         await apiRequest('/api/daily-conditions', { method: 'PUT', body: JSON.stringify({ log_date: date, ...payload }) });
       }
-      const body = { content, mood_word_ids: moods.map((m) => m.id), ai_suggested_word_ids: aiIds };
+      const body = { content, mood_word_ids: moods.map((m) => m.id), ai_suggested_word_ids: aiIds, ...(researchConsent ? { research_use: research } : {}) };
       if (diaryId) {
         await apiRequest(`/api/diaries/${diaryId}`, { method: 'PATCH', body: JSON.stringify(body) });
       } else {
@@ -131,6 +137,8 @@ export default function TodayPage() {
           <h3>일기</h3>
           <textarea rows={6} value={content} onChange={(e) => setContent(e.target.value)} maxLength={20000} placeholder={isToday ? '오늘 마음에 남은 생각을 적어 보세요.' : '그날 마음에 남았던 생각을 적어 보세요.'} />
         </section>
+
+        {researchConsent && <ResearchToggle checked={research} onChange={setResearchChoice} />}
 
         <AiSuggest
           content={content} aiConsent={aiConsent}

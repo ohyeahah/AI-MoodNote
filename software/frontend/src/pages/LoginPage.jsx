@@ -3,7 +3,8 @@ import { apiRequest, apiUrl, clearSocialError, getSocialError } from '../api/cli
 import { useAuth } from '../auth/AuthContext';
 
 // 로그인 화면: 아이디, 비밀번호, 로그인 버튼, 그 아래 소셜 로그인 3개(Google, 네이버, 카카오).
-// 버튼을 누르면 서버(/api/auth/<업체>/start)가 업체의 로그인 화면으로 보낸다. 서버에 키가 없는 업체는 "준비 중"이라고 알려 준다.
+// 버튼을 누르면 서버(/api/auth/<업체>/start)가 업체의 로그인 화면으로 보낸다. 서버에 키가 없는 업체의 버튼은 화면에서 숨기고,
+// 켜진 업체가 하나도 없으면 소셜 로그인 줄 전체를 숨긴다. (.env 에 키를 넣고 서버를 다시 시작하면 그 업체 버튼이 저절로 나타난다)
 // 아이콘은 각 업체 공식 색을 따라 그린 것이다. 앱을 공개하기 전에 각 업체 개발자 사이트의 공식 버튼 이미지로 바꿔야 한다.
 const MARKS = {
   google: (
@@ -41,6 +42,7 @@ export default function LoginPage() {
   const [ready, setReady] = useState({});                     // 서버에서 켜져 있는 소셜 로그인 {kakao: true, ...}
   const [busy, setBusy] = useState(false);
   const isLogin = mode === 'login';
+  const shown = SOCIAL.filter((s) => ready[s.key]);          // 키가 들어가 있는 업체만 보여 준다
 
   useEffect(() => {
     clearSocialError();
@@ -83,11 +85,13 @@ export default function LoginPage() {
         <button className="btn primary full" disabled={busy}>{busy ? '잠시만요…' : isLogin ? '로그인' : '가입하고 시작하기'}</button>
       </form>
 
-      <div className="social" role="group" aria-label="다른 계정으로 로그인">
-        {SOCIAL.map((s) => (
-          <button key={s.key} type="button" className={`social-btn ${s.key}`} aria-label={`${s.name}로 로그인`} title={s.name} onClick={social(s)}>{MARKS[s.key]}</button>
-        ))}
-      </div>
+      {shown.length > 0 && (
+        <div className="social" role="group" aria-label="다른 계정으로 로그인">
+          {shown.map((s) => (
+            <button key={s.key} type="button" className={`social-btn ${s.key}`} aria-label={`${s.name}로 로그인`} title={s.name} onClick={social(s)}>{MARKS[s.key]}</button>
+          ))}
+        </div>
+      )}
 
       <p className="switch muted">
         {isLogin ? '계정이 없나요? ' : '이미 계정이 있나요? '}

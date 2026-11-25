@@ -50,6 +50,10 @@ def set_consent(consent_type):
                         (str(uuid.uuid4()), user_id, consent_type, version))
         elif not granted and active:
             cur.execute("UPDATE consents SET revoked_at=NOW() WHERE id=%s", (active["id"],))
+        if consent_type == "ai_training" and not granted:
+            # 연구 활용 동의를 끄면 모든 일기가 연구에서 빠진다. 다시 동의해도 자동으로 되돌리지 않고, 일기마다 새로 고르게 한다.
+            cur.execute("UPDATE diary_entries SET research_use=0 WHERE user_id=%s", (user_id,))
+            cur.execute("UPDATE users SET research_default=0 WHERE id=%s", (user_id,))
     return jsonify({"success": True, "consent_type": consent_type, "granted": granted})
 
 
@@ -59,7 +63,7 @@ def export_my_data():
     """내 데이터 전체를 내려받는다. 동의가 없어도, 철회한 뒤에도 가능해야 한다."""
     user_id = get_jwt_identity()
     with db_cursor() as cur:
-        cur.execute("SELECT id, nickname, login_id, created_at FROM users WHERE id=%s", (user_id,))
+        cur.execute("SELECT id, nickname, login_id, research_default, created_at FROM users WHERE id=%s", (user_id,))
         user = cur.fetchone()
         if not user:
             raise APIError("사용자를 찾을 수 없습니다.", "NOT_FOUND", 404)

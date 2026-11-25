@@ -467,3 +467,67 @@ def test_password_account_unchanged_by_social(client):
     assert me["has_password"] is True and me["login_methods"] == []
     assert client.delete("/api/users/me", headers=h, json={"confirm": "탈퇴합니다"}).status_code == 400     # 비밀번호 계정은 문구로 탈퇴할 수 없다
     assert client.delete("/api/users/me", headers=h, json={"password": "password123"}).status_code == 200
+
+
+# ---------- 연구 활용 선택 (동의 + 일기별 체크, 둘 다 있어야 한다) ----------
+
+def _diary(client, h, **extra):
+    body = {"content": "연구 테스트", "mood_word_ids": [75]}
+    body.update(extra)
+    return client.post("/api/diaries", headers=h, json=body)
+
+
+def _made(client, h, **extra):
+    """일기를 만들고 서버가 저장한 모습(diary)을 다시 읽어 돌려준다."""
+    r = _diary(client, h, **extra)
+    assert r.status_code == 201
+    return _get(client, h, r.get_json()["diary_id"])
+
+
+def _get(client, h, diary_id):
+    return client.get(f"/api/diaries/{diary_id}", headers=h).get_json()["diary"]
+
+
+def test_research_off_by_default_and_needs_consent(client):
+    h, _ = new_user(client)                                   # 연구 활용 동의 없음
+    assert _made(client, h)["research_use"] is False
+    assert _diary(client, h, research_use=True).status_code == 403          # 동의 없이는 켤 수 없다
+    assert _diary(client, h, research_use="yes").status_code == 400         # true/false 만 받는다
+    me = client.get("/api/users/me", headers=h).get_json()
+    assert (me.get("user") or me)["research_default"] is False
+    assert client.patch("/api/users/me", headers=h, json={"research_default": True}).status_code == 403
+
+
+def test_research_per_diary_and_default(client):
+    h, _ = new_user(client, consents=("diary_storage", "ai_training"))
+    d1 = _made(client, h)
+    assert d1["research_use"] is False                                       # 동의해도 일기는 기본 꺼짐
+    d2 = _made(client, h, research_use=True)
+    assert d2["research_use"] is True
+    assert client.patch(f"/api/diaries/{d1['id']}", headers=h, json={"research_use": True}).status_code == 200
+    assert _get(client, h, d1["id"])["research_use"] is True
+    assert client.patch(f"/api/diaries/{d1['id']}", headers=h, json={"content": "내용만 고침"}).status_code == 200
+    assert _get(client, h, d1["id"])["research_use"] is True                  # 다른 항목을 고쳐도 선택은 유지
+    assert client.patch("/api/users/me", headers=h, json={"research_default": True}).status_code == 200
+    assert _made(client, h)["research_use"] is True     # 기본 선택이 새 일기에 적용
+    assert _made(client, h, research_use=False)["research_use"] is False   # 직접 고른 값이 우선
+
+
+def test_research_revoke_resets_everything(client):
+    h, _ = new_user(client, consents=("diary_storage", "ai_training"))
+    client.patch("/api/users/me", headers=h, json={"research_default": True})
+    ids = [_made(client, h)["id"] for _ in range(2)]
+    assert client.put("/api/consents/ai_training", headers=h, json={"granted": False}).status_code == 200
+    for i in ids:
+        assert _get(client, h, i)["research_use"] is False
+    me = client.get("/api/users/me", headers=h).get_json()
+    assert (me.get("user") or me)["research_default"] is False
+    client.put("/api/consents/ai_training", headers=h, json={"granted": True, "version": "v1"})
+    assert _get(client, h, ids[0])["research_use"] is False   # 다시 동의해도 자동 복구 없음
+    assert _made(client, h)["research_use"] is False
+
+
+def test_nickname_patch_still_works_and_empty_patch_rejected(client):
+    h, _ = new_user(client)
+    assert client.patch("/api/users/me", headers=h, json={"nickname": "바뀜"}).status_code == 200
+    assert client.patch("/api/users/me", headers=h, json={}).status_code == 400

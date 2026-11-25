@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiRequest } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import Art from '../components/Art';
 import Ball from '../components/Ball';
 import MoodSelectorModal from '../components/MoodSelectorModal';
+import ResearchToggle from '../components/ResearchToggle';
 import { formatKo } from '../lib/dates';
 import { MAX_MOODS } from '../lib/mood';
 
@@ -21,13 +23,16 @@ function DiaryCard({ diary, onChanged }) {
   const [moods, setMoods] = useState(toMoods(diary));
   const [modal, setModal] = useState(false);
   const [error, setError] = useState('');
+  const { consents } = useAuth();
+  const researchConsent = !!consents?.ai_training?.granted;
+  const [research, setResearch] = useState(!!diary.research_use);
 
   const save = async () => {
     setError('');
     try {
       await apiRequest(`/api/diaries/${diary.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ content: text, ...(moods.length ? { mood_word_ids: moods.map((m) => m.id) } : {}) }),
+        body: JSON.stringify({ content: text, ...(moods.length ? { mood_word_ids: moods.map((m) => m.id) } : {}), ...(researchConsent ? { research_use: research } : {}) }),
       });
       setEditing(false); onChanged();
     } catch (e) { setError(e.message); }
@@ -49,14 +54,16 @@ function DiaryCard({ diary, onChanged }) {
       {editing ? (
         <>
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
+          {researchConsent && <ResearchToggle checked={research} onChange={setResearch} />}
           <div className="row">
             <button type="button" className="btn primary" onClick={save} disabled={!text.trim()}>저장</button>
-            <button type="button" className="btn ghost" onClick={() => { setEditing(false); setText(diary.content); setMoods(toMoods(diary)); }}>취소</button>
+            <button type="button" className="btn ghost" onClick={() => { setEditing(false); setText(diary.content); setMoods(toMoods(diary)); setResearch(!!diary.research_use); }}>취소</button>
           </div>
         </>
       ) : (
         <>
           <p className="diary-text">{diary.content}</p>
+          {diary.research_use && <p className="muted small">연구에 써도 되는 일기로 표시돼 있어요.</p>}
           <div className="row">
             <button type="button" className="btn ghost" onClick={() => setEditing(true)}>수정</button>
             <button type="button" className="btn ghost danger" onClick={remove}>삭제</button>

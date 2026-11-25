@@ -52,22 +52,38 @@ def login():
 @bp.patch("/api/users/me")
 @jwt_required()
 def update_me():
-    """닉네임만 고칠 수 있다. (아이디와 비밀번호 변경은 이번 범위가 아니다)"""
-    nickname = req_text(json_body(), "nickname", 1, 50)
+    """닉네임과 '새 일기의 연구 활용 기본 선택'(research_default)을 고칠 수 있다. 보낸 항목만 바꾼다. (아이디와 비밀번호 변경은 이번 범위가 아니다)"""
+    user_id = get_jwt_identity()
+    data = json_body()
+    sets, values, out = [], [], {"success": True}
+    if "nickname" in data:
+        out["nickname"] = req_text(data, "nickname", 1, 50)
+        sets.append("nickname=%s"); values.append(out["nickname"])
+    if "research_default" in data:
+        if not isinstance(data["research_default"], bool):
+            raise APIError("'research_default' 는 true 또는 false 여야 해요.")
+        sets.append("research_default=%s"); values.append(int(data["research_default"]))
+    if not sets:
+        raise APIError("고칠 항목이 없어요 (nickname, research_default).")
     with db_cursor() as cur:
-        cur.execute("UPDATE users SET nickname=%s WHERE id=%s", (nickname, get_jwt_identity()))
-    return jsonify({"success": True, "nickname": nickname})
+        if data.get("research_default") is True:      # 동의 없이는 기본값을 켤 수 없다
+            cur.execute("SELECT 1 FROM consents WHERE user_id=%s AND consent_type='ai_training' AND revoked_at IS NULL LIMIT 1", (user_id,))
+            if not cur.fetchone():
+                raise APIError("연구 활용에 동의해야 기본 선택을 켤 수 있어요.", "CONSENT_REQUIRED", 403)
+        cur.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=%s", (*values, user_id))
+    return jsonify(out)
 
 
 @bp.get("/api/users/me")
 @jwt_required()
 def me():
     with db_cursor() as cur:
-        cur.execute("SELECT id, nickname, login_id, password_hash, created_at FROM users WHERE id=%s", (get_jwt_identity(),))
+        cur.execute("SELECT id, nickname, login_id, password_hash, research_default, created_at FROM users WHERE id=%s", (get_jwt_identity(),))
         user = cur.fetchone()
         if not user:
             raise APIError("사용자를 찾을 수 없습니다.", "NOT_FOUND", 404)
         cur.execute("SELECT provider FROM user_identities WHERE user_id=%s ORDER BY created_at", (user["id"],))
         user["login_methods"] = [r["provider"] for r in cur.fetchall()]   # 연결된 소셜 로그인 (예: ["kakao"])
+    user["research_default"] = bool(user["research_default"])
     user["has_password"] = user.pop("password_hash") != NO_PASSWORD        # 소셜로만 만든 계정은 비밀번호가 없다
     return jsonify({"success": True, "user": user})

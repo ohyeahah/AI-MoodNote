@@ -1,8 +1,9 @@
--- MoodNote 스키마 v1.6 (MySQL 8.0.16 이상 기준)
+-- MoodNote 스키마 v1.7 (MySQL 8.0.16 이상 기준)
 -- 변경 기록: v1.1 최초(테이블 10개) / v1.2 daily_condition 숫자화 + caffeine_cups, menstrual_cycles, cycle_tracking 동의 추가(11개) /
 --            v1.3 daily_condition.water_cups, diary_entries.ai_suggested_word_ids 추가 (이미 만든 DB는 migrate_v1_3.sql 로 올린다). 회의 확정 필요 /
 --            v1.4 diary_entries.picked_word_ids (감정 최대 3개) / v1.5 feedback 테이블 (이미 만든 DB는 migrate_v1_5.py 로 올린다) /
---            v1.6 user_identities 테이블, 소셜 로그인 (이미 만든 DB는 migrate_v1_6.py 로 올린다)
+--            v1.6 user_identities 테이블, 소셜 로그인 (이미 만든 DB는 migrate_v1_6.py 로 올린다) /
+--            v1.7 diary_entries.research_use, users.research_default, 일기별 연구 활용 선택 (이미 만든 DB는 migrate_v1_7.sql 로 올린다)
 -- schema.sql(SQLite)의 MySQL 변환본. 구조와 제약은 같고, 문법만 다르다.
 -- 검증: MariaDB 10.11(MySQL 호환)에서 실행해 테이블 생성, 제약 차단, CASCADE 삭제를 확인했다.
 --       MySQL 8.0 자체에서는 아직 돌려보지 않았다. 처음 실행할 때 오류가 나면 팀에 알린다.
@@ -23,6 +24,7 @@ CREATE TABLE users (
   nickname      VARCHAR(50)  NOT NULL,
   login_id      VARCHAR(64)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  research_default TINYINT(1) NOT NULL DEFAULT 0,   -- 새 일기의 '연구 활용' 기본 선택. 동의(ai_training)가 켜진 사람만 1 이 될 수 있다
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -79,6 +81,7 @@ CREATE TABLE diary_entries (
   automatic_thought TEXT,                    -- 선택 입력 (화면에서는 "그때 든 생각")
   ai_suggested_word_ids VARCHAR(20) NULL,    -- AI가 추천한 무드 단어 id (예: '12,45,67'). 최종 선택과 비교해 추천에 끌렸는지 나중에 구분한다
   picked_word_ids   VARCHAR(20) NULL,        -- 내가 고른 감정 id 최대 3개 (예: '75,78'). mood_word_id 는 이 감정들의 평균에 가장 가까운 대표 단어
+  research_use      TINYINT(1)  NOT NULL DEFAULT 0, -- 이 일기를 연구에 써도 되는지. 기본 0(안 씀). 1 이 되려면 연구 활용 동의(ai_training)가 켜져 있어야 하고, 동의를 끄면 전부 0 으로 돌아간다
   created_at        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT chk_diary_source CHECK (source IN ('text','voice')),

@@ -77,6 +77,14 @@ export default function SettingsPage() {
         <h3>동의</h3>
         {toggle('diary_storage', '일기와 컨디션 기록 저장 (끄면 기록과 조회가 막혀요)')}
         {toggle('ai_counseling', 'AI 감정 추천 (추천을 누를 때 일기 내용이 외부 AI로 전송돼요)')}
+        {toggle('ai_training', '연구 활용 (일기마다 직접 체크한 일기만, 개인 정보를 뺀 채 연구에 쓰여요. 끄면 모든 일기가 연구에서 빠져요)')}
+        {consents?.ai_training?.granted && (
+          <label className="check sub-check">
+            <input type="checkbox" checked={!!user?.research_default}
+              onChange={(e) => run(async () => { await apiRequest('/api/users/me', { method: 'PATCH', body: JSON.stringify({ research_default: e.target.checked }) }); await refresh(); })} />
+            <span>새 일기의 기본 선택: 연구에 써도 돼요 <span className="muted small">(일기를 쓸 때마다 바꿀 수 있어요)</span></span>
+          </label>
+        )}
       </section>
 
       <section className="card stack">
